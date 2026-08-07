@@ -43,7 +43,9 @@ html,body{ margin:0; padding:0; height:100%; background:var(--paper); color:var(
 .map-viewport.dragging{ cursor:grabbing; }
 .map-viewport.animating{ transition:transform .28s ease; }
 
-.zoom-reset-btn{ position:absolute; right:16px; bottom:16px; z-index:25; width:38px; height:38px; border-radius:50%; border:1px solid var(--stone-soft); background:rgba(253,252,250,.95); box-shadow:0 4px 12px rgba(0,0,0,.15); font-size:16px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; color:var(--pine); }
+.zoom-controls{ position:absolute; right:16px; bottom:16px; z-index:25; display:flex; flex-direction:column; gap:6px; }
+.zoom-controls button{ width:38px; height:38px; border-radius:50%; border:1px solid var(--stone-soft); background:rgba(253,252,250,.95); box-shadow:0 4px 12px rgba(0,0,0,.15); font-size:16px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; color:var(--pine); }
+.zoom-controls button:hover{ background:#fff; border-color:var(--accent); color:var(--accent); }
 .zoom-hint{ position:absolute; left:50%; bottom:14px; transform:translateX(-50%); z-index:20; font-size:11px; color:var(--stone); background:rgba(253,252,250,.9); padding:4px 10px; border-radius:999px; border:1px solid var(--stone-soft); pointer-events:none; opacity:.9; transition:opacity .4s ease; }
 .zoom-hint.hide{ opacity:0; }
 
@@ -59,13 +61,22 @@ html,body{ margin:0; padding:0; height:100%; background:var(--paper); color:var(
 .marker.calib-current::after{ content:""; position:absolute; inset:-6px; border-radius:50%; border:1.5px dashed var(--accent); animation:pulse 1.1s infinite; }
 @keyframes pulse{ 0%{transform:scale(.85);opacity:1;} 100%{transform:scale(1.6);opacity:0;} }
 .marker-tag{ position:absolute; top:100%; left:50%; transform:translate(-50%,1px); font-size:9px; line-height:1; color:var(--pine); background:rgba(253,252,250,.78); padding:1px 3px; border-radius:2px; pointer-events:none; white-space:nowrap; opacity:0; transition:opacity .15s ease; }
-/* 只有放大到夠近時才顯示數字，避免縮小時 49 個標籤糊成一團 */
+/* 手機畫面小，49 個標籤在縮小狀態必然重疊，所以放大到夠近才顯示數字 */
 .map-stage.labels-on .marker-tag{ opacity:1; }
+/* 電腦版螢幕大，地圖本來就顯示得夠大，數字一律顯示（維持原本的使用方式） */
+@media (min-width: 700px){
+  .marker-tag{ opacity:1; }
+}
 .marker.symbol .ring{ stroke:var(--pine-soft); stroke-dasharray:2,1.4; }
 .marker.star{ cursor:default; }
 .marker.star .star-shape{ fill:rgba(169,117,74,.25); stroke:var(--accent); stroke-width:1; }
 .marker.star:hover .star-shape{ fill:rgba(169,117,74,.55); }
 .marker.star.calib-current .star-shape{ fill:rgba(169,117,74,.65); stroke-width:1.4; }
+
+/* 群組點：這一帶有好幾個景點時合併顯示，數字＝景點數量 */
+.marker.cluster{ width:26px; height:26px; z-index:6; }
+.cluster-bubble{ width:26px; height:26px; border-radius:50%; background:var(--accent); color:#fff; font-size:12px; font-weight:600; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 8px rgba(0,0,0,.28); border:2px solid rgba(255,255,255,.9); }
+.marker.cluster:hover .cluster-bubble{ background:var(--pine); }
 .marker-audio-badge{ position:absolute; top:-5px; right:-5px; width:9px; height:9px; border-radius:50%; background:var(--accent); font-size:7px; display:flex; align-items:center; justify-content:center; color:#fff; }
 .marker-tooltip{ position:absolute; bottom:100%; left:50%; transform:translate(-50%,-4px); background:var(--ink); color:#fff; font-size:11px; padding:4px 8px; border-radius:4px; white-space:nowrap; opacity:0; pointer-events:none; transition:opacity .12s ease; z-index:20; }
 .marker:hover .marker-tooltip{ opacity:.95; }
@@ -176,22 +187,26 @@ html,body{ margin:0; padding:0; height:100%; background:var(--paper); color:var(
   <div class="map-viewport" id="mapViewport">
     <div class="map-stage" id="mapStage">
       <img class="map-image" id="mapImage" src="base-map.png" alt="園區地圖底圖">
-
-      <div class="calib-panel" id="calibPanel">
-        <h4>校準座標</h4>
-        <div class="calib-current-row">目前選取：<strong id="calibCurrentLabel">—</strong></div>
-        <div class="calib-nav">
-          <button id="calibPrev">←</button>
-          <select id="calibSelect"></select>
-          <button id="calibNext">→</button>
-        </div>
-        <button class="calib-export" id="calibExport">複製全部座標</button>
-        <div class="calib-hint">點地圖＝設定「目前選取」的座標，設定後自動跳下一個。標完按「複製全部座標」，貼回程式碼取代對應的 x/y 即可。（縮放/拖曳不影響點座標的準確度，可以先放大再點，會更準）</div>
-      </div>
-
     </div>
   </div>
-  <button class="zoom-reset-btn" id="zoomResetBtn" title="回到原始大小">⤢</button>
+
+  <!-- 校準面板放在縮放容器「外面」，才不會跟著地圖一起被放大縮小 -->
+  <div class="calib-panel" id="calibPanel">
+    <h4>校準座標</h4>
+    <div class="calib-current-row">目前選取：<strong id="calibCurrentLabel">—</strong></div>
+    <div class="calib-nav">
+      <button id="calibPrev">←</button>
+      <select id="calibSelect"></select>
+      <button id="calibNext">→</button>
+    </div>
+    <button class="calib-export" id="calibExport">複製全部座標</button>
+    <div class="calib-hint">點地圖＝設定「目前選取」的座標，設定後自動跳下一個。標完按「複製全部座標」，貼回程式碼取代對應的 x/y 即可。（可以先放大再點，會更準）</div>
+  </div>
+  <div class="zoom-controls">
+    <button id="zoomInBtn" title="放大">＋</button>
+    <button id="zoomOutBtn" title="縮小">－</button>
+    <button class="zoom-reset-btn" id="zoomResetBtn" title="回到整張地圖">⤢</button>
+  </div>
   <div class="zoom-hint" id="zoomHint">雙指放大地圖，靠近後會顯示景點編號</div>
 </div>
 
@@ -437,27 +452,100 @@ const lightboxBackdrop=document.getElementById("lightboxBackdrop"), lightboxImg=
 
 function toast(msg){ toastEl.textContent=msg; toastEl.classList.add("show"); clearTimeout(toastEl._t); toastEl._t=setTimeout(()=>toastEl.classList.remove("show"),2200); }
 
+/* ================================================================
+   ★ 標記群集（clustering）
+   ----------------------------------------------------------------
+   問題：49 個點在縮小狀態下，實際螢幕距離只有幾個 pixel，一定會擠成一團。
+   解法：計算每個點「在螢幕上」的實際距離，太近的自動合併成一個群組點，
+   上面顯示這裡有幾個景點。放大之後距離被拉開，群組會自動散開成單獨的點。
+   ★ 這不會動到任何座標資料，純粹是顯示層的處理。
+   ★ 校準模式下會自動關閉群集，確保每個點都能單獨點到。
+   ================================================================ */
+const CLUSTER_PX = 34;   // 螢幕上相距小於這個 px 就合併，數字越大合併越積極
+
+function buildClusters(rect){
+  const pts = [];
+  ALL.forEach(spot=>{
+    const p = toDisplay(spot);
+    if(p.visible) pts.push({spot, dx:p.dx, dy:p.dy});
+  });
+  const used = new Array(pts.length).fill(false);
+  const groups = [];
+  for(let i=0;i<pts.length;i++){
+    if(used[i]) continue;
+    used[i]=true;
+    const g=[pts[i]];
+    for(let j=i+1;j<pts.length;j++){
+      if(used[j]) continue;
+      const px=(pts[i].dx-pts[j].dx)/100*rect.width;
+      const py=(pts[i].dy-pts[j].dy)/100*rect.height;
+      if(Math.hypot(px,py) < CLUSTER_PX){ used[j]=true; g.push(pts[j]); }
+    }
+    groups.push(g);
+  }
+  return groups;
+}
+
+function makeSingleMarker(spot, dx, dy){
+  const marker=document.createElement("div");
+  marker.className="marker"+(spot.type==="symbol"?" symbol":"")+(spot.type==="star"?" star":"");
+  marker.style.left=dx+"%"; marker.style.top=dy+"%";
+  marker.dataset.key=spot.key;
+  const shapeSvg = spot.type==="star"
+    ? `<svg viewBox="0 0 14 14"><polygon class="star-shape" points="7,0.8 8.7,5.1 13.3,5.3 9.7,8.2 10.9,12.6 7,10.1 3.1,12.6 4.3,8.2 0.7,5.3 5.3,5.1"></polygon></svg>`
+    : `<svg viewBox="0 0 14 14"><circle class="ring" cx="7" cy="7" r="6"></circle></svg>`;
+  marker.innerHTML = `
+    ${shapeSvg}
+    ${spot.audio ? '<div class="marker-audio-badge">♪</div>' : ''}
+    <div class="marker-tag">${spot.label||""}</div>
+    <div class="marker-tooltip">${getText(spot,"name",currentLang)}</div>
+  `;
+  marker.addEventListener("click",(e)=>{ e.stopPropagation(); if(calibMode) return; if(spot.type==="star") return; openPanel(spot); });
+  return marker;
+}
+
+function makeClusterMarker(group){
+  const dx = group.reduce((a,p)=>a+p.dx,0)/group.length;
+  const dy = group.reduce((a,p)=>a+p.dy,0)/group.length;
+  const el=document.createElement("div");
+  el.className="marker cluster";
+  el.style.left=dx+"%"; el.style.top=dy+"%";
+  const names = group.slice(0,6).map(p=>getText(p.spot,"name",currentLang)).join("、")
+              + (group.length>6 ? "…" : "");
+  el.innerHTML = `
+    <div class="cluster-bubble">${group.length}</div>
+    <div class="marker-tooltip">這一帶有 ${group.length} 個景點：${names}</div>
+  `;
+  // 點群組＝放大到這一帶，讓裡面的點散開
+  el.addEventListener("click",(e)=>{
+    e.stopPropagation();
+    if(calibMode) return;
+    if(window.__zoomAPI) window.__zoomAPI.zoomToPoint(dx, dy);
+  });
+  return el;
+}
+
 function renderMarkers(){
   document.querySelectorAll(".marker").forEach(el=>el.remove());
-  ALL.forEach((spot)=>{
-    const pos = toDisplay(spot);
-    if(!pos.visible) return;
-    const marker=document.createElement("div");
-    marker.className="marker"+(spot.type==="symbol"?" symbol":"")+(spot.type==="star"?" star":"");
-    marker.style.left=pos.dx+"%"; marker.style.top=pos.dy+"%";
-    marker.dataset.key=spot.key;
-    const shapeSvg = spot.type==="star"
-      ? `<svg viewBox="0 0 14 14"><polygon class="star-shape" points="7,0.8 8.7,5.1 13.3,5.3 9.7,8.2 10.9,12.6 7,10.1 3.1,12.6 4.3,8.2 0.7,5.3 5.3,5.1"></polygon></svg>`
-      : `<svg viewBox="0 0 14 14"><circle class="ring" cx="7" cy="7" r="6"></circle></svg>`;
-    marker.innerHTML = `
-      ${shapeSvg}
-      ${spot.audio ? '<div class="marker-audio-badge">♪</div>' : ''}
-      <div class="marker-tag">${spot.label||""}</div>
-      <div class="marker-tooltip">${getText(spot,"name",currentLang)}</div>
-    `;
-    marker.addEventListener("click",(e)=>{ e.stopPropagation(); if(calibMode) return; if(spot.type==="star") return; openPanel(spot); });
-    mapStage.appendChild(marker);
-  });
+  const rect = mapStage.getBoundingClientRect();
+  /* ★重要防呆：底圖還沒載入完成時，容器寬高會是 0，這時候算出來的
+     「螢幕距離」全部都是 0，會導致所有點被誤判成同一群、整張地圖
+     只剩一顆球。所以尺寸還沒準備好時，一律不群集。 */
+  const sizeReady = rect.width > 50 && rect.height > 50;
+  // 校準模式：不群集，每個點都要能單獨點到
+  const groups = (calibMode || !sizeReady) ? null : buildClusters(rect);
+
+  if(!groups){
+    ALL.forEach(spot=>{
+      const p = toDisplay(spot);
+      if(p.visible) mapStage.appendChild(makeSingleMarker(spot, p.dx, p.dy));
+    });
+  } else {
+    groups.forEach(g=>{
+      if(g.length===1) mapStage.appendChild(makeSingleMarker(g[0].spot, g[0].dx, g[0].dy));
+      else mapStage.appendChild(makeClusterMarker(g));
+    });
+  }
   if(calibMode) highlightCalibCurrent();
 }
 
@@ -629,6 +717,7 @@ document.getElementById("calibNext").addEventListener("click",()=>{ calibIndex=(
 
 calibToggle.addEventListener("click",()=>{
   calibMode=!calibMode; calibToggle.classList.toggle("on", calibMode); calibPanel.classList.toggle("show", calibMode);
+  renderMarkers();   // 校準模式要關閉群集，離開時再恢復
   if(calibMode){ buildCalibSelect(); highlightCalibCurrent(); }
   else{ document.querySelectorAll(".marker").forEach(m=>m.classList.remove("calib-current")); }
 });
@@ -677,12 +766,20 @@ document.getElementById("calibExport").addEventListener("click",()=>{
 
   const LABEL_THRESHOLD = 1.8;   // 放大超過這個倍率才顯示數字標籤
 
-  function apply(){
+  let renderPending = false;
+  function scheduleRender(){
+    if(renderPending) return;
+    renderPending = true;
+    requestAnimationFrame(()=>{ renderPending=false; renderMarkers(); });
+  }
+
+  function apply(reclusterNow){
     mapViewport.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
     /* ★關鍵：把標記「反向縮放」回去，這樣底圖放大、節點之間距離被拉開，
        但圓點和數字本身維持原本大小，不會跟著變成巨無霸。 */
     mapStage.style.setProperty("--marker-scale", 1/scale);
     mapStage.classList.toggle("labels-on", scale >= LABEL_THRESHOLD);
+    if(reclusterNow !== false) scheduleRender();   // 縮放後重算群集，該散開的散開
   }
 
   function clampScale(s){ return Math.min(MAX_SCALE, Math.max(MIN_SCALE, s)); }
@@ -729,6 +826,7 @@ document.getElementById("calibExport").addEventListener("click",()=>{
     tx += mid.x - prevMid.x;
     ty += mid.y - prevMid.y;
 
+    let scaleChanged = false;
     if(list.length===2){
       const d = distOf(list);
       if(prevDist>0){
@@ -737,11 +835,12 @@ document.getElementById("calibExport").addEventListener("click",()=>{
         tx = mid.x - (mid.x - tx)*k;
         ty = mid.y - (mid.y - ty)*k;
         scale = newScale;
+        scaleChanged = true;
       }
       prevDist = d;
     }
     prevMid = mid;
-    apply();
+    apply(scaleChanged);   // 純拖曳時不重算群集，避免卡頓
     if(moveDist>4) hideHint();
   });
 
@@ -757,18 +856,41 @@ document.getElementById("calibExport").addEventListener("click",()=>{
   // 拖曳幅度夠大的話，放開手指後不要誤觸發底下的景點點擊
   mapViewport.addEventListener("click",(e)=>{ if(suppressClick){ e.stopPropagation(); e.preventDefault(); } }, true);
 
-  // 桌面滑鼠滾輪縮放（以游標位置為中心）
+  /* 電腦版滑鼠滾輪：
+     - 一般滾動 = 上下（或左右）移動地圖，維持你原本習慣的操作方式
+     - Ctrl / ⌘ + 滾輪 = 縮放（也是觸控板雙指捏合會送出的事件） */
   mapSection.addEventListener("wheel",(e)=>{
     e.preventDefault();
-    const p = relPoint(e);
-    const newScale = clampScale(scale * (1 - e.deltaY*0.0016));
-    const k = newScale/scale;
-    tx = p.x - (p.x - tx)*k;
-    ty = p.y - (p.y - ty)*k;
-    scale = newScale;
-    apply();
     hideHint();
+    if(e.ctrlKey || e.metaKey){
+      const p = relPoint(e);
+      const newScale = clampScale(scale * (1 - e.deltaY*0.01));
+      const k = newScale/scale;
+      tx = p.x - (p.x - tx)*k;
+      ty = p.y - (p.y - ty)*k;
+      scale = newScale;
+      apply(true);
+    } else {
+      tx -= e.deltaX;
+      ty -= e.deltaY;
+      apply(false);
+    }
   }, { passive:false });
+
+  // 電腦版的縮放按鈕（不是每個人都知道 Ctrl+滾輪）
+  function zoomBy(factor){
+    const rect = mapSection.getBoundingClientRect();
+    const p = { x: rect.width/2, y: rect.height/2 };
+    const newScale = clampScale(scale*factor);
+    const k = newScale/scale;
+    tx = p.x - (p.x - tx)*k; ty = p.y - (p.y - ty)*k;
+    scale = newScale;
+    mapViewport.classList.add("animating");
+    apply(true);
+    hideHint();
+  }
+  document.getElementById("zoomInBtn").addEventListener("click", ()=>zoomBy(1.5));
+  document.getElementById("zoomOutBtn").addEventListener("click", ()=>zoomBy(1/1.5));
 
   // 雙擊／雙擊放大縮小
   mapViewport.addEventListener("dblclick",(e)=>{
@@ -779,27 +901,55 @@ document.getElementById("calibExport").addEventListener("click",()=>{
     tx = p.x - (p.x - tx)*k; ty = p.y - (p.y - ty)*k;
     scale = newScale;
     mapViewport.classList.add("animating");
-    apply();
+    apply(true);
   });
 
   function resetZoom(){
     scale=1; tx=0; ty=0;
     mapViewport.classList.add("animating");
-    apply();
+    apply(true);
   }
   zoomResetBtn.addEventListener("click", resetZoom);
 
-  apply();   // 初始化：設定好標記縮放比例與標籤顯示狀態
+  /* 給群組點使用：點一個群組，就放大並把那一帶移到畫面中央，
+     裡面的點就會散開成單獨的圓點。 */
+  function zoomToPoint(dxPct, dyPct){
+    const sectionRect = mapSection.getBoundingClientRect();
+    const stageRect = mapStage.getBoundingClientRect();
+    const p = {
+      x: stageRect.left + dxPct/100*stageRect.width - sectionRect.left,
+      y: stageRect.top  + dyPct/100*stageRect.height - sectionRect.top
+    };
+    const newScale = clampScale(scale * 2);
+    const k = newScale/scale;
+    tx = p.x - (p.x - tx)*k;
+    ty = p.y - (p.y - ty)*k;
+    // 再把該點移到畫面中央
+    tx += sectionRect.width/2  - p.x;
+    ty += sectionRect.height/2 - p.y;
+    scale = newScale;
+    mapViewport.classList.add("animating");
+    apply(true);
+    hideHint();
+  }
+  window.__zoomAPI = { zoomToPoint, resetZoom };
+
+  apply(true);   // 初始化：設定好標記縮放比例、標籤顯示狀態與群集
 
   // 切到別的分頁再切回主地圖時，維持上次的縮放位置即可，不用重置
 })();
 
-window.addEventListener("resize", applyCrop);
+window.addEventListener("resize", ()=>{ applyCrop(); renderMarkers(); });
 
 buildTabNav();
 applyCrop();
 renderMarkers();
 buildCalibSelect();
+
+/* 底圖載入完成後，容器才會有正確的寬高，這時候重算一次版面與群集 */
+if(mapImage.complete) { applyCrop(); renderMarkers(); }
+mapImage.addEventListener("load", ()=>{ applyCrop(); renderMarkers(); });
+mapImage.addEventListener("error", ()=>{ applyCrop(); renderMarkers(); });
 </script>
 
 </body>
