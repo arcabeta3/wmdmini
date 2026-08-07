@@ -50,7 +50,7 @@ html,body{ margin:0; padding:0; height:100%; background:var(--paper); color:var(
 .map-stage{ position:relative; width:100%; max-width:1200px; overflow:hidden; box-shadow:0 10px 30px rgba(51,66,47,.12); border:1px solid var(--stone-soft); background:#EDEAE2; }
 .map-image{ position:absolute; top:0; left:0; width:100%; height:auto; display:block; }
 
-.marker{ position:absolute; width:14px; height:14px; transform:translate(-50%,-50%); cursor:pointer; z-index:5; }
+.marker{ position:absolute; width:14px; height:14px; transform:translate(-50%,-50%) scale(var(--marker-scale,1)); transform-origin:center; cursor:pointer; z-index:5; }
 .marker svg{ width:100%; height:100%; overflow:visible; }
 .marker .ring{ fill:rgba(51,66,47,.10); stroke:var(--pine); stroke-width:1.2; }
 .marker:hover .ring{ fill:rgba(169,117,74,.28); stroke:var(--accent); }
@@ -58,7 +58,9 @@ html,body{ margin:0; padding:0; height:100%; background:var(--paper); color:var(
 .marker.calib-current .ring{ fill:rgba(169,117,74,.5); stroke:var(--accent); stroke-width:2; }
 .marker.calib-current::after{ content:""; position:absolute; inset:-6px; border-radius:50%; border:1.5px dashed var(--accent); animation:pulse 1.1s infinite; }
 @keyframes pulse{ 0%{transform:scale(.85);opacity:1;} 100%{transform:scale(1.6);opacity:0;} }
-.marker-tag{ position:absolute; top:100%; left:50%; transform:translate(-50%,1px); font-size:9px; line-height:1; color:var(--pine); background:rgba(253,252,250,.78); padding:1px 3px; border-radius:2px; pointer-events:none; white-space:nowrap; }
+.marker-tag{ position:absolute; top:100%; left:50%; transform:translate(-50%,1px); font-size:9px; line-height:1; color:var(--pine); background:rgba(253,252,250,.78); padding:1px 3px; border-radius:2px; pointer-events:none; white-space:nowrap; opacity:0; transition:opacity .15s ease; }
+/* 只有放大到夠近時才顯示數字，避免縮小時 49 個標籤糊成一團 */
+.map-stage.labels-on .marker-tag{ opacity:1; }
 .marker.symbol .ring{ stroke:var(--pine-soft); stroke-dasharray:2,1.4; }
 .marker.star{ cursor:default; }
 .marker.star .star-shape{ fill:rgba(169,117,74,.25); stroke:var(--accent); stroke-width:1; }
@@ -190,7 +192,7 @@ html,body{ margin:0; padding:0; height:100%; background:var(--paper); color:var(
     </div>
   </div>
   <button class="zoom-reset-btn" id="zoomResetBtn" title="回到原始大小">⤢</button>
-  <div class="zoom-hint" id="zoomHint">雙指縮放／拖曳移動地圖</div>
+  <div class="zoom-hint" id="zoomHint">雙指放大地圖，靠近後會顯示景點編號</div>
 </div>
 
 <!-- ============ 分頁 2~N：地形照片（純瀏覽，點圖放大） ============ -->
@@ -673,7 +675,15 @@ document.getElementById("calibExport").addEventListener("click",()=>{
   let moveDist = 0;              // 這次手勢總共移動了多少（用來分辨「點」還是「拖」）
   let suppressClick = false;
 
-  function apply(){ mapViewport.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`; }
+  const LABEL_THRESHOLD = 1.8;   // 放大超過這個倍率才顯示數字標籤
+
+  function apply(){
+    mapViewport.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+    /* ★關鍵：把標記「反向縮放」回去，這樣底圖放大、節點之間距離被拉開，
+       但圓點和數字本身維持原本大小，不會跟著變成巨無霸。 */
+    mapStage.style.setProperty("--marker-scale", 1/scale);
+    mapStage.classList.toggle("labels-on", scale >= LABEL_THRESHOLD);
+  }
 
   function clampScale(s){ return Math.min(MAX_SCALE, Math.max(MIN_SCALE, s)); }
 
@@ -778,6 +788,8 @@ document.getElementById("calibExport").addEventListener("click",()=>{
     apply();
   }
   zoomResetBtn.addEventListener("click", resetZoom);
+
+  apply();   // 初始化：設定好標記縮放比例與標籤顯示狀態
 
   // 切到別的分頁再切回主地圖時，維持上次的縮放位置即可，不用重置
 })();
