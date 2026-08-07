@@ -471,7 +471,12 @@ function toast(msg){ toastEl.textContent=msg; toastEl.classList.add("show"); cle
    ★ 校準模式下會自動關閉群集，確保每個點都能單獨點到。
    ================================================================ */
 const CLUSTER_PX = 34;   // 螢幕上相距小於這個 px 就合併，數字越大合併越積極
-const MIN_SCALE = 1, MAX_SCALE = 6;   // 縮放上下限（放到最大時強制不群集，保證每個點都能單獨點到）
+/* 放大上限鎖在 3 倍：這張地圖的景點在真實地理上就是很密集（最近的兩點只差 1.39%），
+   要靠「放大到散開」得放到 6.6 倍才夠，那個倍率實際使用起來已經不方便、
+   也讓底圖必須做到很誇張的解析度。所以改成：倍率鎖在實用範圍內，
+   靠下面的 DECLUSTER_SCALE 直接關掉群集來保證每個點都點得到。 */
+const MIN_SCALE = 1, MAX_SCALE = 3;
+const DECLUSTER_SCALE = 2.2;   // 放大超過這個倍率就完全不群集，全部點單獨顯示
 window.__mapScale = 1;   // 目前縮放倍率，renderMarkers 會讀這個決定要不要群集
 
 function buildClusters(rect){
@@ -563,9 +568,10 @@ function renderMarkers(){
      「螢幕距離」全部都是 0，會導致所有點被誤判成同一群、整張地圖
      只剩一顆球。所以尺寸還沒準備好時，一律不群集。 */
   const sizeReady = rect.width > 50 && rect.height > 50;
-  /* ★放到最大縮放（MAX_SCALE）時，不管距離算出來多少，一律強制不群集，
-     保證使用者放到最大一定能看到每一個點、點得到，不會卡在「還是包成一團」。 */
-  const atMaxZoom = window.__mapScale >= MAX_SCALE - 0.001;
+  /* ★放大超過 DECLUSTER_SCALE 時，不管實際距離算出來多少，一律不群集，
+     全部點單獨顯示。因為這張地圖的景點本來就密集，光靠拉開距離不可行，
+     直接關掉群集才能保證使用者放大後每個點都看得到、點得到。 */
+  const atMaxZoom = window.__mapScale >= DECLUSTER_SCALE;
   // 校準模式：不群集，每個點都要能單獨點到
   const groups = (calibMode || !sizeReady || atMaxZoom) ? null : buildClusters(rect);
 
