@@ -37,8 +37,15 @@ html,body{ margin:0; padding:0; height:100%; background:var(--paper); color:var(
 .calib-toggle .dot{ width:7px; height:7px; border-radius:50%; background:var(--stone-soft); }
 .calib-toggle.on .dot{ background:var(--accent); }
 
-/* ---------- 地圖區（現在佔滿整個畫面寬度，因為不再需要側欄） ---------- */
-.map-wrap{ position:relative; height:calc(100% - 58px); min-height:340px; overflow:auto; background:radial-gradient(circle at 50% 50%, #fff 0%, #F1EEE7 100%); padding:24px; display:flex; align-items:flex-start; justify-content:center; }
+/* ---------- 地圖區（支援手機雙指縮放、拖曳平移，桌面滑鼠滾輪縮放） ---------- */
+.map-wrap{ position:relative; height:calc(100% - 58px); min-height:340px; overflow:hidden; background:radial-gradient(circle at 50% 50%, #fff 0%, #F1EEE7 100%); }
+.map-viewport{ position:absolute; inset:0; display:flex; align-items:flex-start; justify-content:center; padding:24px; touch-action:none; cursor:grab; transform-origin:0 0; will-change:transform; }
+.map-viewport.dragging{ cursor:grabbing; }
+.map-viewport.animating{ transition:transform .28s ease; }
+
+.zoom-reset-btn{ position:absolute; right:16px; bottom:16px; z-index:25; width:38px; height:38px; border-radius:50%; border:1px solid var(--stone-soft); background:rgba(253,252,250,.95); box-shadow:0 4px 12px rgba(0,0,0,.15); font-size:16px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; color:var(--pine); }
+.zoom-hint{ position:absolute; left:50%; bottom:14px; transform:translateX(-50%); z-index:20; font-size:11px; color:var(--stone); background:rgba(253,252,250,.9); padding:4px 10px; border-radius:999px; border:1px solid var(--stone-soft); pointer-events:none; opacity:.9; transition:opacity .4s ease; }
+.zoom-hint.hide{ opacity:0; }
 
 .map-stage{ position:relative; width:100%; max-width:1200px; overflow:hidden; box-shadow:0 10px 30px rgba(51,66,47,.12); border:1px solid var(--stone-soft); background:#EDEAE2; }
 .map-image{ position:absolute; top:0; left:0; width:100%; height:auto; display:block; }
@@ -162,24 +169,28 @@ html,body{ margin:0; padding:0; height:100%; background:var(--paper); color:var(
   </div>
 </div>
 
-<!-- ============ 分頁 1：主地圖（互動圓點＋介紹） ============ -->
+<!-- ============ 分頁 1：主地圖（互動圓點＋介紹，支援手機雙指縮放/拖曳） ============ -->
 <div class="map-wrap" id="mapSection">
-  <div class="map-stage" id="mapStage">
-    <img class="map-image" id="mapImage" src="base-map.png" alt="園區地圖底圖">
+  <div class="map-viewport" id="mapViewport">
+    <div class="map-stage" id="mapStage">
+      <img class="map-image" id="mapImage" src="base-map.png" alt="園區地圖底圖">
 
-    <div class="calib-panel" id="calibPanel">
-      <h4>校準座標</h4>
-      <div class="calib-current-row">目前選取：<strong id="calibCurrentLabel">—</strong></div>
-      <div class="calib-nav">
-        <button id="calibPrev">←</button>
-        <select id="calibSelect"></select>
-        <button id="calibNext">→</button>
+      <div class="calib-panel" id="calibPanel">
+        <h4>校準座標</h4>
+        <div class="calib-current-row">目前選取：<strong id="calibCurrentLabel">—</strong></div>
+        <div class="calib-nav">
+          <button id="calibPrev">←</button>
+          <select id="calibSelect"></select>
+          <button id="calibNext">→</button>
+        </div>
+        <button class="calib-export" id="calibExport">複製全部座標</button>
+        <div class="calib-hint">點地圖＝設定「目前選取」的座標，設定後自動跳下一個。標完按「複製全部座標」，貼回程式碼取代對應的 x/y 即可。（縮放/拖曳不影響點座標的準確度，可以先放大再點，會更準）</div>
       </div>
-      <button class="calib-export" id="calibExport">複製全部座標</button>
-      <div class="calib-hint">點地圖＝設定「目前選取」的座標，設定後自動跳下一個。標完按「複製全部座標」，貼回程式碼取代對應的 x/y 即可。</div>
-    </div>
 
+    </div>
   </div>
+  <button class="zoom-reset-btn" id="zoomResetBtn" title="回到原始大小">⤢</button>
+  <div class="zoom-hint" id="zoomHint">雙指縮放／拖曳移動地圖</div>
 </div>
 
 <!-- ============ 分頁 2~N：地形照片（純瀏覽，點圖放大） ============ -->
@@ -407,6 +418,7 @@ function isTranslated(spot, base, lang){
 }
 
 const mapStage=document.getElementById("mapStage"), mapImage=document.getElementById("mapImage");
+const mapViewport=document.getElementById("mapViewport"), zoomResetBtn=document.getElementById("zoomResetBtn"), zoomHintEl=document.getElementById("zoomHint");
 const modalBackdrop=document.getElementById("modalBackdrop"), modalCard=document.getElementById("modalCard");
 const galleryMain=document.getElementById("galleryMain"), galleryThumbs=document.getElementById("galleryThumbs");
 const panelEyebrow=document.getElementById("panelEyebrow"), panelTitle=document.getElementById("panelTitle");
@@ -644,6 +656,131 @@ document.getElementById("calibExport").addEventListener("click",()=>{
   navigator.clipboard.writeText(out).then(()=>toast("已複製座標，貼回程式碼比對 x/y 即可"))
     .catch(()=>{ window.__exportedCoords=out; console.log(out); toast("複製失敗，已印在瀏覽器主控台 (F12)"); });
 });
+
+/* ================================================================
+   ★ 地圖縮放／平移（解決手機上節點擠成一團看不清楚的問題）
+   ----------------------------------------------------------------
+   原理：不去動任何景點的 x/y 座標，而是讓「整個地圖容器」可以被
+   使用者用手勢放大、拖曳。放大之後，畫面上只會顯示某一小範圍，
+   附近擠在一起的節點自然就會被撐開、變得好點。
+   ★ 這一段跟座標資料完全獨立，以後不管怎麼改座標都不用動這裡。
+   ================================================================ */
+(function(){
+  const MIN_SCALE = 1, MAX_SCALE = 4;
+  let scale = 1, tx = 0, ty = 0;
+  let pointers = new Map();      // 目前按著的手指/滑鼠
+  let prevMid = null, prevDist = 0;
+  let moveDist = 0;              // 這次手勢總共移動了多少（用來分辨「點」還是「拖」）
+  let suppressClick = false;
+
+  function apply(){ mapViewport.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`; }
+
+  function clampScale(s){ return Math.min(MAX_SCALE, Math.max(MIN_SCALE, s)); }
+
+  function midOf(list){
+    const n = list.length;
+    let x=0,y=0; list.forEach(p=>{x+=p.x;y+=p.y;});
+    return {x:x/n, y:y/n};
+  }
+  function distOf(list){
+    const [a,b] = list;
+    return Math.hypot(a.x-b.x, a.y-b.y);
+  }
+  function relPoint(e){
+    const rect = mapSection.getBoundingClientRect();
+    return { x: e.clientX-rect.left, y: e.clientY-rect.top };
+  }
+
+  function resetTracking(){
+    const list=[...pointers.values()];
+    prevMid = list.length ? midOf(list) : null;
+    prevDist = list.length===2 ? distOf(list) : 0;
+  }
+
+  function hideHint(){ zoomHintEl.classList.add("hide"); }
+
+  mapViewport.addEventListener("pointerdown",(e)=>{
+    mapViewport.setPointerCapture(e.pointerId);
+    pointers.set(e.pointerId, relPoint(e));
+    moveDist = 0;
+    mapViewport.classList.remove("animating");
+    mapViewport.classList.add("dragging");
+    resetTracking();
+  });
+
+  mapViewport.addEventListener("pointermove",(e)=>{
+    if(!pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, relPoint(e));
+    const list=[...pointers.values()];
+    if(!prevMid){ resetTracking(); return; }
+
+    const mid = midOf(list);
+    moveDist += Math.hypot(mid.x-prevMid.x, mid.y-prevMid.y);
+    tx += mid.x - prevMid.x;
+    ty += mid.y - prevMid.y;
+
+    if(list.length===2){
+      const d = distOf(list);
+      if(prevDist>0){
+        const newScale = clampScale(scale * (d/prevDist));
+        const k = newScale/scale;
+        tx = mid.x - (mid.x - tx)*k;
+        ty = mid.y - (mid.y - ty)*k;
+        scale = newScale;
+      }
+      prevDist = d;
+    }
+    prevMid = mid;
+    apply();
+    if(moveDist>4) hideHint();
+  });
+
+  function endPointer(e){
+    pointers.delete(e.pointerId);
+    if(moveDist>6){ suppressClick=true; setTimeout(()=>suppressClick=false, 0); }
+    if(pointers.size===0) mapViewport.classList.remove("dragging");
+    resetTracking();
+  }
+  mapViewport.addEventListener("pointerup", endPointer);
+  mapViewport.addEventListener("pointercancel", endPointer);
+
+  // 拖曳幅度夠大的話，放開手指後不要誤觸發底下的景點點擊
+  mapViewport.addEventListener("click",(e)=>{ if(suppressClick){ e.stopPropagation(); e.preventDefault(); } }, true);
+
+  // 桌面滑鼠滾輪縮放（以游標位置為中心）
+  mapSection.addEventListener("wheel",(e)=>{
+    e.preventDefault();
+    const p = relPoint(e);
+    const newScale = clampScale(scale * (1 - e.deltaY*0.0016));
+    const k = newScale/scale;
+    tx = p.x - (p.x - tx)*k;
+    ty = p.y - (p.y - ty)*k;
+    scale = newScale;
+    apply();
+    hideHint();
+  }, { passive:false });
+
+  // 雙擊／雙擊放大縮小
+  mapViewport.addEventListener("dblclick",(e)=>{
+    hideHint();
+    if(scale>1){ resetZoom(); return; }
+    const p = relPoint(e);
+    const newScale = 2.4, k = newScale/scale;
+    tx = p.x - (p.x - tx)*k; ty = p.y - (p.y - ty)*k;
+    scale = newScale;
+    mapViewport.classList.add("animating");
+    apply();
+  });
+
+  function resetZoom(){
+    scale=1; tx=0; ty=0;
+    mapViewport.classList.add("animating");
+    apply();
+  }
+  zoomResetBtn.addEventListener("click", resetZoom);
+
+  // 切到別的分頁再切回主地圖時，維持上次的縮放位置即可，不用重置
+})();
 
 window.addEventListener("resize", applyCrop);
 
