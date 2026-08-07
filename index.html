@@ -471,13 +471,17 @@ function toast(msg){ toastEl.textContent=msg; toastEl.classList.add("show"); cle
    ★ 校準模式下會自動關閉群集，確保每個點都能單獨點到。
    ================================================================ */
 const CLUSTER_PX = 34;   // 螢幕上相距小於這個 px 就合併，數字越大合併越積極
-/* 放大上限鎖在 3 倍：這張地圖的景點在真實地理上就是很密集（最近的兩點只差 1.39%），
-   要靠「放大到散開」得放到 6.6 倍才夠，那個倍率實際使用起來已經不方便、
-   也讓底圖必須做到很誇張的解析度。所以改成：倍率鎖在實用範圍內，
-   靠下面的 DECLUSTER_SCALE 直接關掉群集來保證每個點都點得到。 */
-const MIN_SCALE = 1, MAX_SCALE = 3;
-const DECLUSTER_SCALE = 2.2;   // 放大超過這個倍率就完全不群集，全部點單獨顯示
+/* ★縮放上限不能用「倍率」來定，因為同樣的倍率在不同裝置上是完全不同的東西：
+   電腦上地圖原本就顯示成約 1200px 寬，放 3 倍就變 3600px（太大）；
+   手機上地圖原本只有約 342px 寬，放 3 倍才 1026px（根本不夠）。
+   所以改成用「地圖放大後實際顯示成多寬」當標準，上限由程式依裝置自動換算：
+   ── 手機自然會算出約 7 倍，電腦約 2 倍，兩邊的實際使用體驗才一致。 */
+const MAX_MAP_WIDTH_PX  = 2600;   // 放到最大時，地圖顯示的寬度（最近兩點約可分開 36px）
+const DECLUSTER_MAP_PX  = 2300;   // 地圖顯示寬度超過這個值就完全不群集
+const LABEL_MAP_PX      = 900;    // 地圖顯示寬度超過這個值才顯示數字標籤
+const MIN_SCALE = 1;
 window.__mapScale = 1;   // 目前縮放倍率，renderMarkers 會讀這個決定要不要群集
+window.__mapDisplayWidth = 0;   // 目前地圖實際顯示的寬度（px）
 
 function buildClusters(rect){
   const pts = [];
@@ -568,10 +572,9 @@ function renderMarkers(){
      「螢幕距離」全部都是 0，會導致所有點被誤判成同一群、整張地圖
      只剩一顆球。所以尺寸還沒準備好時，一律不群集。 */
   const sizeReady = rect.width > 50 && rect.height > 50;
-  /* ★放大超過 DECLUSTER_SCALE 時，不管實際距離算出來多少，一律不群集，
-     全部點單獨顯示。因為這張地圖的景點本來就密集，光靠拉開距離不可行，
-     直接關掉群集才能保證使用者放大後每個點都看得到、點得到。 */
-  const atMaxZoom = window.__mapScale >= DECLUSTER_SCALE;
+  /* ★地圖顯示寬度超過 DECLUSTER_MAP_PX 時，一律不群集，全部點單獨顯示。
+     用「顯示寬度」而不是「倍率」判斷，手機和電腦才會在對等的實際大小下解散。 */
+  const atMaxZoom = window.__mapDisplayWidth >= DECLUSTER_MAP_PX;
   // 校準模式：不群集，每個點都要能單獨點到
   const groups = (calibMode || !sizeReady || atMaxZoom) ? null : buildClusters(rect);
 
@@ -804,7 +807,12 @@ document.getElementById("calibExport").addEventListener("click",()=>{
   let moveDist = 0;              // 這次手勢總共移動了多少（用來分辨「點」還是「拖」）
   let suppressClick = false;
 
-  const LABEL_THRESHOLD = 1.8;   // 放大超過這個倍率才顯示數字標籤
+  /* 縮放上限依裝置動態計算：地圖自然寬度越小（手機），可放大的倍率就越大，
+     這樣手機和電腦放到最大時，地圖的「實際顯示大小」是一致的。 */
+  function currentMaxScale(){
+    if(!naturalBox || naturalBox.width < 10) return 4;
+    return Math.max(1.5, MAX_MAP_WIDTH_PX / naturalBox.width);
+  }
 
   let renderPending = false;
   function scheduleRender(){
@@ -861,14 +869,15 @@ document.getElementById("calibExport").addEventListener("click",()=>{
   function apply(reclusterNow){
     clampPan();
     mapViewport.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
-    mapStage.classList.toggle("labels-on", scale >= LABEL_THRESHOLD);
-    markerLayer.classList.toggle("labels-on", scale >= LABEL_THRESHOLD);
-    window.__mapScale = scale;   // 給 renderMarkers 判斷是否已經到最大縮放
+    const displayWidth = (naturalBox ? naturalBox.width : 0) * scale;
+    window.__mapScale = scale;
+    window.__mapDisplayWidth = displayWidth;   // 給 renderMarkers 判斷群集/標籤
+    markerLayer.classList.toggle("labels-on", displayWidth >= LABEL_MAP_PX);
     repositionMarkers();   // ★每一格畫面都重新定位圓點的真實像素位置（輕量：只搬 left/top，不重建 DOM）
     if(reclusterNow !== false) scheduleRender();   // 縮放後重算群集，該散開的散開
   }
 
-  function clampScale(s){ return Math.min(MAX_SCALE, Math.max(MIN_SCALE, s)); }
+  function clampScale(s){ return Math.min(currentMaxScale(), Math.max(MIN_SCALE, s)); }
 
   function midOf(list){
     const n = list.length;
@@ -983,7 +992,8 @@ document.getElementById("calibExport").addEventListener("click",()=>{
     hideHint();
     if(scale>1){ resetZoom(); return; }
     const p = relPoint(e);
-    const newScale = 2.4, k = newScale/scale;
+    // 雙擊直接跳到「全部點散開」的程度（依裝置換算，不用固定倍率）
+    const newScale = clampScale(naturalBox ? DECLUSTER_MAP_PX/naturalBox.width : 2.4), k = newScale/scale;
     tx = p.x - (p.x - tx)*k; ty = p.y - (p.y - ty)*k;
     scale = newScale;
     mapViewport.classList.add("animating");
