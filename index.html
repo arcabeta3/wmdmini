@@ -38,10 +38,13 @@ html,body{ margin:0; padding:0; height:100%; background:var(--paper); color:var(
 .calib-toggle.on .dot{ background:var(--accent); }
 
 /* ---------- 地圖區（支援手機雙指縮放、拖曳平移，桌面滑鼠滾輪縮放） ---------- */
-.map-wrap{ position:relative; height:calc(100% - 58px); min-height:340px; overflow:hidden; background:radial-gradient(circle at 50% 50%, #fff 0%, #F1EEE7 100%); }
-.map-viewport{ position:absolute; inset:0; display:flex; align-items:flex-start; justify-content:center; padding:24px; touch-action:none; cursor:grab; transform-origin:0 0; will-change:transform; }
-.map-viewport.dragging{ cursor:grabbing; }
+.map-wrap{ position:relative; height:calc(100% - 58px); min-height:340px; overflow:hidden; background:radial-gradient(circle at 50% 50%, #fff 0%, #F1EEE7 100%); cursor:grab; touch-action:none; }
+.map-wrap.dragging{ cursor:grabbing; }
+.map-viewport{ position:absolute; inset:0; display:flex; align-items:flex-start; justify-content:center; padding:24px; transform-origin:0 0; will-change:transform; }
 .map-viewport.animating{ transition:transform .28s ease; }
+
+/* ★不放 transform，圓點永遠是原生大小/位置，不會跟著地圖縮放糊掉 */
+.marker-layer{ position:absolute; inset:0; z-index:4; pointer-events:none; overflow:hidden; touch-action:none; }
 
 .zoom-controls{ position:absolute; right:16px; bottom:16px; z-index:25; display:flex; flex-direction:column; gap:6px; }
 .zoom-controls button{ width:38px; height:38px; border-radius:50%; border:1px solid var(--stone-soft); background:rgba(253,252,250,.95); box-shadow:0 4px 12px rgba(0,0,0,.15); font-size:16px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; color:var(--pine); }
@@ -52,7 +55,7 @@ html,body{ margin:0; padding:0; height:100%; background:var(--paper); color:var(
 .map-stage{ position:relative; width:100%; max-width:1200px; overflow:hidden; box-shadow:0 10px 30px rgba(51,66,47,.12); border:1px solid var(--stone-soft); background:#EDEAE2; }
 .map-image{ position:absolute; top:0; left:0; width:100%; height:auto; display:block; }
 
-.marker{ position:absolute; width:14px; height:14px; transform:translate(-50%,-50%) scale(var(--marker-scale,1)); transform-origin:center; cursor:pointer; z-index:5; }
+.marker{ position:absolute; width:14px; height:14px; transform:translate(-50%,-50%); cursor:pointer; z-index:5; pointer-events:auto; }
 .marker svg{ width:100%; height:100%; overflow:visible; }
 .marker .ring{ fill:rgba(51,66,47,.10); stroke:var(--pine); stroke-width:1.2; }
 .marker:hover .ring{ fill:rgba(169,117,74,.28); stroke:var(--accent); }
@@ -62,7 +65,7 @@ html,body{ margin:0; padding:0; height:100%; background:var(--paper); color:var(
 @keyframes pulse{ 0%{transform:scale(.85);opacity:1;} 100%{transform:scale(1.6);opacity:0;} }
 .marker-tag{ position:absolute; top:100%; left:50%; transform:translate(-50%,1px); font-size:9px; line-height:1; color:var(--pine); background:rgba(253,252,250,.78); padding:1px 3px; border-radius:2px; pointer-events:none; white-space:nowrap; opacity:0; transition:opacity .15s ease; }
 /* 手機畫面小，49 個標籤在縮小狀態必然重疊，所以放大到夠近才顯示數字 */
-.map-stage.labels-on .marker-tag{ opacity:1; }
+.marker-layer.labels-on .marker-tag{ opacity:1; }
 /* 電腦版螢幕大，地圖本來就顯示得夠大，數字一律顯示（維持原本的使用方式） */
 @media (min-width: 700px){
   .marker-tag{ opacity:1; }
@@ -186,9 +189,14 @@ html,body{ margin:0; padding:0; height:100%; background:var(--paper); color:var(
 <div class="map-wrap" id="mapSection">
   <div class="map-viewport" id="mapViewport">
     <div class="map-stage" id="mapStage">
-      <img class="map-image" id="mapImage" src="base-map.png" alt="園區地圖底圖">
+      <img class="map-image" id="mapImage" src="bg.webp" alt="園區地圖底圖">
     </div>
   </div>
+
+  <!-- ★圓點圖層獨立在外面，不會被地圖的縮放 transform 影響，永遠用原生解析度畫，
+       這樣放大縮小時圓點/文字都不會糊（糊的問題是底圖影像放大本身的物理限制，
+       跟圓點是兩回事，圓點在這裡處理後就不該再糊了） -->
+  <div class="marker-layer" id="markerLayer"></div>
 
   <!-- 校準面板放在縮放容器「外面」，才不會跟著地圖一起被放大縮小 -->
   <div class="calib-panel" id="calibPanel">
@@ -359,7 +367,7 @@ const STARS = [
 ];
 
 
-const baseW = 3000, baseH = 3000;   // ★底圖 base-map.png 目前的實際尺寸，換圖時記得更新
+const baseW = 6000, baseH = 6000;   // ★底圖 bg.webp 目前的實際尺寸，換圖時記得更新
 const CROP = { left: 0, top: 0, right: 100, bottom: 100 };
 const ALL = [...SPOTS_MAP1, ...SYMBOLS_MAP1, ...STARS];
 
@@ -436,6 +444,7 @@ function isTranslated(spot, base, lang){
 
 const mapStage=document.getElementById("mapStage"), mapImage=document.getElementById("mapImage");
 const mapViewport=document.getElementById("mapViewport"), zoomResetBtn=document.getElementById("zoomResetBtn"), zoomHintEl=document.getElementById("zoomHint");
+const markerLayer=document.getElementById("markerLayer");
 const modalBackdrop=document.getElementById("modalBackdrop"), modalCard=document.getElementById("modalCard");
 const galleryMain=document.getElementById("galleryMain"), galleryThumbs=document.getElementById("galleryThumbs");
 const panelEyebrow=document.getElementById("panelEyebrow"), panelTitle=document.getElementById("panelTitle");
@@ -491,7 +500,7 @@ function buildClusters(rect){
 function makeSingleMarker(spot, dx, dy){
   const marker=document.createElement("div");
   marker.className="marker"+(spot.type==="symbol"?" symbol":"")+(spot.type==="star"?" star":"");
-  marker.style.left=dx+"%"; marker.style.top=dy+"%";
+  marker.dataset.dx=dx; marker.dataset.dy=dy;
   marker.dataset.key=spot.key;
   const shapeSvg = spot.type==="star"
     ? `<svg viewBox="0 0 14 14"><polygon class="star-shape" points="7,0.8 8.7,5.1 13.3,5.3 9.7,8.2 10.9,12.6 7,10.1 3.1,12.6 4.3,8.2 0.7,5.3 5.3,5.1"></polygon></svg>`
@@ -511,7 +520,7 @@ function makeClusterMarker(group){
   const dy = group.reduce((a,p)=>a+p.dy,0)/group.length;
   const el=document.createElement("div");
   el.className="marker cluster";
-  el.style.left=dx+"%"; el.style.top=dy+"%";
+  el.dataset.dx=dx; el.dataset.dy=dy;
   const names = group.slice(0,6).map(p=>getText(p.spot,"name",currentLang)).join("、")
               + (group.length>6 ? "…" : "");
   el.innerHTML = `
@@ -527,8 +536,28 @@ function makeClusterMarker(group){
   return el;
 }
 
+/* ★把圓點實際定位到畫面上的正確像素位置。
+   這個函式刻意跟「建立圓點 DOM」（renderMarkers）分開：
+   - renderMarkers：資料/群集有變化時才需要重新蓋 DOM（比較貴）
+   - repositionMarkers：純粹縮放/拖曳時每一格畫面都要呼叫（要夠輕量），
+     只是搬動既有 DOM 元素的 left/top，不重建內容，才不會頓。
+   圓點本身永遠是原生 14px 大小，不會被地圖的縮放 transform 影響到，
+   這是解決「放大會糊」的關鍵——圓點根本不在會被縮放的圖層裡面。 */
+function repositionMarkers(){
+  if(!window.__zoomAPI) return;
+  const st = window.__zoomAPI.getState();
+  if(!st.naturalBox) return;
+  markerLayer.querySelectorAll(".marker").forEach(el=>{
+    const dx=parseFloat(el.dataset.dx), dy=parseFloat(el.dataset.dy);
+    const nx = st.naturalBox.left + dx/100*st.naturalBox.width;
+    const ny = st.naturalBox.top  + dy/100*st.naturalBox.height;
+    el.style.left = (nx*st.scale + st.tx) + "px";
+    el.style.top  = (ny*st.scale + st.ty) + "px";
+  });
+}
+
 function renderMarkers(){
-  document.querySelectorAll(".marker").forEach(el=>el.remove());
+  markerLayer.querySelectorAll(".marker").forEach(el=>el.remove());
   const rect = mapStage.getBoundingClientRect();
   /* ★重要防呆：底圖還沒載入完成時，容器寬高會是 0，這時候算出來的
      「螢幕距離」全部都是 0，會導致所有點被誤判成同一群、整張地圖
@@ -543,14 +572,15 @@ function renderMarkers(){
   if(!groups){
     ALL.forEach(spot=>{
       const p = toDisplay(spot);
-      if(p.visible) mapStage.appendChild(makeSingleMarker(spot, p.dx, p.dy));
+      if(p.visible) markerLayer.appendChild(makeSingleMarker(spot, p.dx, p.dy));
     });
   } else {
     groups.forEach(g=>{
-      if(g.length===1) mapStage.appendChild(makeSingleMarker(g[0].spot, g[0].dx, g[0].dy));
-      else mapStage.appendChild(makeClusterMarker(g));
+      if(g.length===1) markerLayer.appendChild(makeSingleMarker(g[0].spot, g[0].dx, g[0].dy));
+      else markerLayer.appendChild(makeClusterMarker(g));
     });
   }
+  repositionMarkers();   // 蓋完 DOM 立刻定位到正確的螢幕像素位置
   if(calibMode) highlightCalibCurrent();
 }
 
@@ -825,11 +855,10 @@ document.getElementById("calibExport").addEventListener("click",()=>{
   function apply(reclusterNow){
     clampPan();
     mapViewport.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
-    /* ★關鍵：把標記「反向縮放」回去，這樣底圖放大、節點之間距離被拉開，
-       但圓點和數字本身維持原本大小，不會跟著變成巨無霸。 */
-    mapStage.style.setProperty("--marker-scale", 1/scale);
     mapStage.classList.toggle("labels-on", scale >= LABEL_THRESHOLD);
+    markerLayer.classList.toggle("labels-on", scale >= LABEL_THRESHOLD);
     window.__mapScale = scale;   // 給 renderMarkers 判斷是否已經到最大縮放
+    repositionMarkers();   // ★每一格畫面都重新定位圓點的真實像素位置（輕量：只搬 left/top，不重建 DOM）
     if(reclusterNow !== false) scheduleRender();   // 縮放後重算群集，該散開的散開
   }
 
@@ -857,16 +886,16 @@ document.getElementById("calibExport").addEventListener("click",()=>{
 
   function hideHint(){ zoomHintEl.classList.add("hide"); }
 
-  mapViewport.addEventListener("pointerdown",(e)=>{
-    mapViewport.setPointerCapture(e.pointerId);
+  mapSection.addEventListener("pointerdown",(e)=>{
+    mapSection.setPointerCapture(e.pointerId);
     pointers.set(e.pointerId, relPoint(e));
     moveDist = 0;
     mapViewport.classList.remove("animating");
-    mapViewport.classList.add("dragging");
+    mapSection.classList.add("dragging");
     resetTracking();
   });
 
-  mapViewport.addEventListener("pointermove",(e)=>{
+  mapSection.addEventListener("pointermove",(e)=>{
     if(!pointers.has(e.pointerId)) return;
     pointers.set(e.pointerId, relPoint(e));
     const list=[...pointers.values()];
@@ -898,14 +927,14 @@ document.getElementById("calibExport").addEventListener("click",()=>{
   function endPointer(e){
     pointers.delete(e.pointerId);
     if(moveDist>6){ suppressClick=true; setTimeout(()=>suppressClick=false, 0); }
-    if(pointers.size===0) mapViewport.classList.remove("dragging");
+    if(pointers.size===0) mapSection.classList.remove("dragging");
     resetTracking();
   }
-  mapViewport.addEventListener("pointerup", endPointer);
-  mapViewport.addEventListener("pointercancel", endPointer);
+  mapSection.addEventListener("pointerup", endPointer);
+  mapSection.addEventListener("pointercancel", endPointer);
 
   // 拖曳幅度夠大的話，放開手指後不要誤觸發底下的景點點擊
-  mapViewport.addEventListener("click",(e)=>{ if(suppressClick){ e.stopPropagation(); e.preventDefault(); } }, true);
+  mapSection.addEventListener("click",(e)=>{ if(suppressClick){ e.stopPropagation(); e.preventDefault(); } }, true);
 
   /* 電腦版滑鼠滾輪：
      - 一般滾動 = 上下（或左右）移動地圖，維持你原本習慣的操作方式
@@ -944,7 +973,7 @@ document.getElementById("calibExport").addEventListener("click",()=>{
   document.getElementById("zoomOutBtn").addEventListener("click", ()=>zoomBy(1/1.5));
 
   // 雙擊／雙擊放大縮小
-  mapViewport.addEventListener("dblclick",(e)=>{
+  mapSection.addEventListener("dblclick",(e)=>{
     hideHint();
     if(scale>1){ resetZoom(); return; }
     const p = relPoint(e);
@@ -983,7 +1012,7 @@ document.getElementById("calibExport").addEventListener("click",()=>{
     apply(true);
     hideHint();
   }
-  window.__zoomAPI = { zoomToPoint, resetZoom, measureNatural };
+  window.__zoomAPI = { zoomToPoint, resetZoom, measureNatural, getState: ()=>({scale, tx, ty, naturalBox}) };
 
   measureNatural();
   apply(true);   // 初始化：設定好標記縮放比例、標籤顯示狀態與群集
