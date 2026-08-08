@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+3<!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
@@ -108,6 +108,13 @@ html,body{ margin:0; padding:0; height:100%; background:var(--paper); color:var(
 .modal-backdrop.show{ opacity:1; pointer-events:auto; }
 .modal-card{ background:var(--panel); width:100%; max-width:560px; max-height:86vh; overflow-y:auto; border-radius:20px 20px 0 0; position:relative; box-shadow:0 -12px 40px rgba(0,0,0,.3); transform:translateY(100%); transition:transform .32s ease; }
 .modal-backdrop.show .modal-card{ transform:translateY(0); }
+
+/* 電腦版（跟其他地方一樣用 700px 當斷點）：面板改成從右側滑出，不是從下面彈出 */
+@media (min-width: 700px){
+  .modal-backdrop{ align-items:stretch; justify-content:flex-end; }
+  .modal-card{ width:420px; max-width:420px; height:100%; max-height:100%; border-radius:0; box-shadow:-12px 0 40px rgba(0,0,0,.3); transform:translateX(100%); }
+  .modal-backdrop.show .modal-card{ transform:translateX(0); }
+}
 .modal-drag-handle{ position:sticky; top:0; display:flex; justify-content:center; padding:8px 0 4px; background:var(--panel); z-index:2; }
 .modal-drag-handle span{ width:36px; height:4px; border-radius:99px; background:var(--stone-soft); display:block; }
 .modal-close{ position:absolute; top:12px; right:12px; width:32px; height:32px; border-radius:50%; border:none; background:rgba(255,255,255,.9); color:var(--ink); font-size:18px; cursor:pointer; z-index:5; box-shadow:0 2px 6px rgba(0,0,0,.15); }
@@ -285,7 +292,7 @@ html,body{ margin:0; padding:0; height:100%; background:var(--paper); color:var(
    ---------------------------------------------------------------- */
 /* ============ 地圖模式 1：手繪地圖 ─ 這裡放地圖1（主要那張）的點位 ============ */
 const SPOTS_MAP1 = [
-  {key:"pt01",x:51.6,y:63.9,label:"01",name:"316空提紀念館",
+  {key:"pt01",x:51.7,y:78.6,label:"01",name:"316空提紀念館",
     name_en:"316 Rapture Memorial Hall",
     name_ko:"성자 사랑의 집 (316 휴거 기념관)",
     desc:"＜316館＞共三層樓、十六根柱子。在這裡達成了「　神的創造目的──空提」，所以這裡也是＜空提館＞。空提就是「愛一體」，亦即「與三位結婚」，因此這裡也是＜婚宴會館＞。也可以把它視為空提館、生命誕生館、靈魂的理想世界──黃金天國。整個月明洞、　神的聖殿就如同這樣的立場",
@@ -294,58 +301,59 @@ const SPOTS_MAP1 = [
     desc_en:"The <316 Hall> has three floors and sixteen pillars. The \"God's purpose of creation-Rapture\" was achieved here, so this is also the \"Rapture Hall\". Rapture is to become \"one with love\", that is, \"marrying the Trinity\", so it is also the <wedding banquet hall>. It can also be regarded as the hall of rapture, the birth of life hall, the ideal world of the soul -- golden kingdom of heaven. In the same way, the whole Wolmyeongdong and the temple of God are in this position.",
     desc_ko:"성자 사랑의 집은 3년 이상 하나님의 구상을 받고 짓기 시작해 2013년 9월 12일에 헌당한 건물 성전이다.수차례 설계를 변경하다가 아름답고 신비하고 웅장하게 하라는 성자의 구상에 따라 현재의 모습으로 짓게 되었다. 이곳은 하나님과 사랑으로 일체된 곳, 하늘의 신부를 상징하는 곳이다. 지하1층은 화장실과 명샵(매점), 1층은 식당과 사무실, 2층은 미술관과 중강당, 3~4층은 1200명 이상 수용할 수 있는 본당으로 이뤄졌다.  성자 사랑의 집은 '316 휴거 기념관'이라고도 부르는데, 3층 건물로써 앞에 기둥 8개, 건물 좌우에 기둥 8개를 합해서 총 16개의 기둥이 세워져 있습니다.정명석 목사는 말씀을 전하며 생명 구원사업을 하다가 교인들이 많아지면서 월명동 자연성전을 건축했습니다. 그 다음에 육적인 건물성전인 성자 사랑의 집을 건축했고 이후로는 전국에 하나 둘씩 성전을 사고 건축하는 역사가 일어났습니다."
   },
-  {key:"pt02",x:46.3,y:62.5,label:"02",name:"景點02"},
-  {key:"pt03",x:60.2,y:56.6,label:"03",name:"景點03"},
-  {key:"pt04",x:54.1,y:57.4,label:"04",name:"景點04"},
-  {key:"pt05",x:52.3,y:55.3,label:"05",name:"韓屋井"},
-  {key:"pt06",x:49.4,y:54.5,label:"06",name:"景點06"},
-  {key:"pt07",x:47.1,y:53.4,label:"07",name:"田谷"},
-  {key:"pt08",x:45.1,y:53.4,label:"08",name:"景點08"},
-  {key:"pt09",x:43,y:53.6,label:"09",name:"展望台"},
-  {key:"pt10",x:50.1,y:51,label:"10",name:"守德天使石"},
-  {key:"pt11",x:50.1,y:48.1,label:"11",name:"迴谷騎馬場"},
-  {key:"pt12",x:49.2,y:44.2, label:"12",name:"迴谷"},
-  {key:"pt13",x:46.4,y:41.5, label:"13",name:"景點13"},
-  {key:"pt14",x:42.9,y:44.2,label:"14",name:"景點14"},
-  {key:"pt15",x:40.5,y:45,label:"15",name:"景點15"},
-  {key:"pt16",x:40.1,y:40.5,label:"16",name:"請德谷"},
-  {key:"pt17",x:41.4,y:40,label:"17",name:"從文化館"},
-  {key:"pt18",x:36.3,y:43.9,label:"18",name:"景點18"},
-  {key:"pt19",x:33.7,y:42.3,label:"19",name:"景點19"},
-  {key:"pt21",x:28.9,y:39.1,label:"21",name:"景點21"},
-  {key:"pt22",x:15.5,y:40,label:"22",name:"景點22"},
-  {key:"pt23",x:33.8,y:48.6,label:"23",name:"景點23"},
-  {key:"pt24",x:37.1,y:51.7,label:"24",name:"景點24"},
-  {key:"pt25",x:17.8,y:34.4,label:"25",name:"郎山"},
-  {key:"pt26",x:26.5,y:34.6,label:"26",name:"景點26"},
-  {key:"pt27",x:52.2,y:34.6,label:"27",name:"入口"},
-  {key:"pt28",x:65.8,y:42.7,label:"28",name:"四月照憲辦公室"},
-  {key:"pt29",x:76.9,y:51.7,label:"29",name:"景點29"},
-  {key:"pt30",x:47,y:36.9,label:"30",name:"景點30"},
-  {key:"pt31",x:45,y:34.6,label:"31",name:"景點31"},
-  {key:"pt32",x:25.6,y:14.9,label:"32",name:"景點32"},
-  {key:"pt33",x:59.4,y:2.2,label:"33",name:"信心山"},
-  {key:"pt34",x:22.8,y:10,label:"34",name:"綠洲泉"},
-  {key:"pt35",x:36.9,y:66.5,label:"35",name:"景點35"},
-  {key:"pt36",x:82.1,y:52.4,label:"36",name:"景點36"},
-  {key:"pt37",x:40.2,y:58.7,label:"37",name:"景點37"},
-  {key:"pt38",x:39.1,y:61.9,label:"38",name:"景點38"},
-  {key:"pt39",x:40.2,y:55.9,label:"39",name:"景點39"},
-  {key:"pt41",x:39.2,y:53.7,label:"41",name:"山泉水"},
-  {key:"pt42",x:29.8,y:43,label:"42",name:"景點42"},
-  {key:"pt43",x:30.5,y:46.5,label:"43",name:"草坪"},
-  {key:"pt44",x:25.8,y:53.6,label:"44",name:"圓山"},
-  {key:"pt45",x:46.3,y:45.5,label:"45",name:"景點45"}
-  /* 46號（梯桃谷精舍洞）換算後落在這張底圖左邊界之外，已經移除 */
+  {key:"pt02",x:47.5,y:71.4,label:"02",name:"月明湖與月明亭"},
+  {key:"pt03",x:61.6,y:59.5,label:"03",name:"聖靈瀑布"},
+  {key:"pt04",x:64.8,y:61.7,label:"04",name:"聖靈瀑布上亭子"},
+  {key:"pt05",x:66.2,y:62.3,label:"05",name:"占星台"},
+  {key:"pt06",x:55.2,y:58,label:"06",name:"癩蛤蟆石"},
+  {key:"pt07",x:52.5,y:58,label:"07",name:"33頓石"},
+  {key:"pt08",x:49.6,y:56.7,label:"08",name:"聖子石"},
+  {key:"pt09",x:47.2,y:56.6,label:"09",name:"人面具相石"},
+  {key:"pt10",x:45.5,y:57,label:"10",name:"扁平石"},
+  {key:"pt11",x:43.8,y:56,label:"11",name:"大象石"},
+  {key:"pt12",x:52,y:51.4, label:"12",name:"石頭作品"},
+  {key:"pt13",x:51.5,y:45.6, label:"13",name:"體會松"},
+  {key:"pt14",x:50.8,y:38.7,label:"14",name:"青瓦屋"},
+  {key:"pt15",x:48,y:42.2,label:"15",name:"聖靈松"},
+  {key:"pt16",x:47.4,y:35,label:"16",name:"宣教中心"},
+  {key:"pt17",x:44.1,y:38.1,label:"17",name:"神之路"},
+  {key:"pt18",x:41.5,y:41.8,label:"18",name:"禱告山"},
+  {key:"pt19",x:38.5,y:41,label:"19",name:"主愛之泉"},
+  {key:"pt21",x:36.7,y:40.4,label:"21",name:"象徵松"},
+  {key:"pt22",x:36.6,y:37.6,label:"22",name:"老家紀念館"},
+  {key:"pt23",x:33.8,y:35.5,label:"23",name:"禱告洞"},
+  {key:"pt24",x:31.5,y:36.4,label:"24",name:"山泉水"},
+  {key:"pt25",x:27.9,y:34.7,label:"25",name:"草坪聖殿"},
+  {key:"pt26",x:14.6,y:31.3,label:"26",name:"景點26"},
+  {key:"pt27",x:18.7,y:29.8,label:"27",name:"山水景石"},
+  {key:"pt28",x:26.3,y:58.2,label:"28",name:"信心山"},
+  {key:"pt46",x:28.3,y:40.2,label:"46",name:"聖子雕像"},
+  {key:"pt29",x:30.4,y:42.3,label:"29",name:"第一瀑布"},
+  {key:"pt30",x:33.2,y:50.2,label:"30",name:"野心作"},
+  {key:"pt31",x:34.7,y:51.6,label:"31",name:"老鷹石"},
+  {key:"pt32",x:39,y:68,label:"32",name:"神之亭"},
+  {key:"pt33",x:40.5,y:65.6,label:"33",name:"神的瀑布"},
+  {key:"pt34",x:54,y:23.1,label:"34",name:"田谷"},
+  {key:"pt35",x:35.2,y:8.6,label:"35",name:"展望台"},
+  {key:"pt36",x:84,y:55,label:"36",name:"城隍堂"},
+  {key:"pt37",x:68.4,y:41.2,label:"37",name:"星峰亭"},
+  {key:"pt38",x:64.5,y:42.1,label:"38",name:"王之座椅松"},
+  {key:"pt39",x:63.5,y:40.6,label:"39",name:"另一顆松樹"},
+  {key:"pt41",x:38.4,y:79.4,label:"41",name:"清算館"},
+  {key:"pt42",x:18.8,y:20.8,label:"42",name:"圓山多福松"},
+  {key:"pt43",x:26.2,y:20.7,label:"43",name:"Ｙ字松"},
+  {key:"pt44",x:39.1,y:36.8,label:"44",name:"構想松"},
+  {key:"pt45",x:41.4,y:29.5,label:"45",name:"禱告奇蹟松"}
+
 ].map(s => ({ name_en:"", name_ko:"", desc:"【站位文字】"+s.name+"的介紹內容，之後替換為正式文案。", desc_en:"", desc_ko:"", photos:[], audio:null, ...s }));
 
 const SYMBOLS_MAP1 = [
-  {key:"toilet-1", type:"symbol", x:48.1, y:46.1, label:"廁", name:"洗手間"},
-  {key:"toilet-2", type:"symbol", x:73.6, y:88, label:"廁", name:"洗手間"},
-  {key:"horse", type:"symbol", x:37.3, y:68.5,  label:"馬", name:"騎馬場入口"},
-  {key:"routeA", type:"symbol", x:58.1, y:57.7, label:"A起", name:"路線A 出發點"},
-  {key:"routeB", type:"symbol", x:45.3, y:44.5, label:"B起", name:"路線B 出發點"},
-  {key:"spring", type:"symbol", x:69.9, y:36.5, label:"泉",  name:"媽媽泉"}
+  {key:"toilet-1", type:"symbol", x:38, y:83.7, label:"廁", name:"洗手間"},
+  {key:"toilet-2", type:"symbol", x:49.9, y:80.5, label:"廁", name:"洗手間"},
+  {key:"horse", type:"symbol", x:23.3, y:1.2,  label:"馬", name:"騎馬場入口"},
+  {key:"routeA", type:"symbol", x:51, y:74.8, label:"A起", name:"路線A 出發點"},
+  {key:"routeB", type:"symbol", x:59.3, y:62.4, label:"B起", name:"路線B 出發點"},
+  {key:"spring", type:"symbol", x:47.4, y:40.7, label:"C起點路線",  name:"青瓦屋前"}
 ].map(s => ({ name_en:"", name_ko:"", desc:"【站位文字】"+s.name+"的介紹內容，之後替換為正式文案。", desc_en:"", desc_ko:"", photos:[], audio:null, ...s }));
 
 /* ----------------------------------------------------------------
@@ -360,14 +368,14 @@ const SYMBOLS_MAP1 = [
    一般景點、點下去會跳出面板。
 
    格式很單純，只要 key/x/y/label/name，desc/photos/audio 都不用填：
-   {key:"star01", type:"star", x:50.0, y:50.0, label:"", name:"景點名稱"}
+   {key:"star01", type:"star", x:86, y:57.1, label:"", name:"景點名稱"}
    ---------------------------------------------------------------- */
 const STARS = [
-  {key:"star01", type:"star", x:44.0, y:33.0, label:"", name:"星星範例點位"}
+  {key:"star01", type:"star", x:86, y:57.1, label:"", name:"星星範例點位"}
 ];
 
 
-const baseW = 6000, baseH = 6000;   // ★底圖 bg.webp 目前的實際尺寸，換圖時記得更新
+const baseW = 4000, baseH = 2500;   // ★底圖 bg.webp 目前的實際尺寸（裁切後），換圖時記得更新
 const CROP = { left: 0, top: 0, right: 100, bottom: 100 };
 const ALL = [...SPOTS_MAP1, ...SYMBOLS_MAP1, ...STARS];
 
@@ -388,6 +396,21 @@ const ALL = [...SPOTS_MAP1, ...SYMBOLS_MAP1, ...STARS];
      導覽列按鈕會自動多一顆，不用改 HTML／CSS。
    ★ 頁面順序＝陣列順序，導覽列由左到右就是這樣排。
    ================================================================ */
+/* ================================================================
+   ★★★ 維修開關（給正式上線用）★★★
+   ----------------------------------------------------------------
+   DEV_MODE = true  → 校準座標工具會顯示，你自己維修/調座標時用
+   DEV_MODE = false → 校準座標工具完全隱藏，遊客看不到、也點不到，
+                       正式給遊客用的時候改成這個
+
+   ★ 現場臨時要修：不想每次都改程式碼重新上傳，也可以維持 false，
+     然後在網址後面加 ?dev=1 就會暫時打開（例如
+     https://arcabeta3.github.io/wmdmini/?dev=1），
+     這個只在那次瀏覽有效，不會影響其他遊客看到的畫面。
+   ================================================================ */
+const DEV_MODE = true;   // ★上線前記得改成 false
+const IS_DEV = DEV_MODE || new URLSearchParams(location.search).has("dev");
+
 const PAGES = [
   {key:"map", label:"主地圖", type:"map"},
 
@@ -520,7 +543,6 @@ function makeSingleMarker(spot, dx, dy){
     <div class="marker-tag">${spot.label||""}</div>
     <div class="marker-tooltip">${getText(spot,"name",currentLang)}</div>
   `;
-  marker.addEventListener("click",(e)=>{ e.stopPropagation(); if(calibMode) return; if(spot.type==="star") return; openPanel(spot); });
   return marker;
 }
 
@@ -536,12 +558,6 @@ function makeClusterMarker(group){
     <div class="cluster-bubble">${group.length}</div>
     <div class="marker-tooltip">這一帶有 ${group.length} 個景點：${names}</div>
   `;
-  // 點群組＝放大到這一帶，讓裡面的點散開
-  el.addEventListener("click",(e)=>{
-    e.stopPropagation();
-    if(calibMode) return;
-    if(window.__zoomAPI) window.__zoomAPI.zoomToPoint(dx, dy);
-  });
   return el;
 }
 
@@ -672,7 +688,7 @@ function switchPage(key){
   gallerySection.style.display= page.type==="gallery" ? "block": "none";
   videoSection.style.display  = page.type==="video"   ? "flex" : "none";
   // 校準工具只跟主地圖有關，切到其他分頁就先藏起來
-  calibToggle.style.display = page.type==="map" ? "flex" : "none";
+  calibToggle.style.display = (page.type==="map" && IS_DEV) ? "flex" : "none";
 
   if(page.type==="gallery") renderGallery(page);
   if(page.type==="video")   renderVideo(page);
@@ -767,12 +783,12 @@ calibToggle.addEventListener("click",()=>{
 });
 
 let calibReadout;
-mapStage.addEventListener("click",(e)=>{
-  if(!calibMode) return;
-  if(e.target.closest(".calib-panel")) return;
+function performCalibClick(clientX, clientY, targetEl){
+  if(!calibMode || !ALL.length) return;
+  if(targetEl && targetEl.closest && (targetEl.closest(".marker") || targetEl.closest(".calib-panel"))) return;
   const rect=mapStage.getBoundingClientRect();
-  const dxPct=(e.clientX-rect.left)/rect.width*100;
-  const dyPct=(e.clientY-rect.top)/rect.height*100;
+  const dxPct=(clientX-rect.left)/rect.width*100;
+  const dyPct=(clientY-rect.top)/rect.height*100;
   const cw=CROP.right-CROP.left, ch=CROP.bottom-CROP.top;
   const xPct=(CROP.left + dxPct*cw/100).toFixed(1);
   const yPct=(CROP.top  + dyPct*ch/100).toFixed(1);
@@ -783,13 +799,43 @@ mapStage.addEventListener("click",(e)=>{
   calibReadout.classList.add("show");
   clearTimeout(calibReadout._t); calibReadout._t=setTimeout(()=>calibReadout.classList.remove("show"),1400);
   calibIndex=(calibIndex+1)%ALL.length; buildCalibSelect(); highlightCalibCurrent();
-});
+}
+
+/* ★複製到剪貼簿這件事在某些情況下會整個不能用（例如用區網 IP 而不是
+   localhost/https 開網頁時，瀏覽器基於安全限制會直接不給用剪貼簿功能，
+   而且失敗得無聲無息，連錯誤訊息都不會跳，比「複製失敗」更糟）。
+   這裡改成：能用剪貼簿就直接複製；不能用，就跳出一個文字框讓你手動全選複製，
+   保證不管什麼環境都拿得到內容，不會卡住。 */
+function copyTextRobust(text, successMsg){
+  function showFallback(){
+    const bd=document.createElement("div");
+    bd.style.cssText="position:fixed;inset:0;background:rgba(34,36,31,.55);z-index:90;display:flex;align-items:center;justify-content:center;padding:20px;";
+    bd.innerHTML=`
+      <div style="background:var(--paper);border-radius:14px;padding:18px;max-width:560px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.3);">
+        <div style="font-size:13px;color:var(--pine);margin-bottom:8px;">自動複製沒有成功，這裡手動全選（已經幫你選好了）再按 Cmd/Ctrl+C 複製：</div>
+        <textarea readonly style="width:100%;height:220px;font-size:12px;font-family:monospace;padding:8px;box-sizing:border-box;"></textarea>
+        <button style="margin-top:10px;padding:8px 16px;border-radius:8px;border:1px solid var(--stone-soft);background:#fff;cursor:pointer;">關閉</button>
+      </div>`;
+    document.body.appendChild(bd);
+    const ta=bd.querySelector("textarea");
+    ta.value=text;
+    ta.focus(); ta.select();
+    bd.querySelector("button").addEventListener("click",()=>bd.remove());
+    bd.addEventListener("click",(e)=>{ if(e.target===bd) bd.remove(); });
+  }
+  try{
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(()=>toast(successMsg)).catch(showFallback);
+    } else {
+      showFallback();
+    }
+  }catch(err){ showFallback(); }
+}
 
 document.getElementById("calibExport").addEventListener("click",()=>{
   const line = s => `  {key:"${s.key}",x:${s.x},y:${s.y},label:"${s.label||""}",name:"${s.name}"}`;
   const out = `// ===== 主地圖座標更新（貼回去取代 x/y 就好）=====\n` + ALL.map(line).join(",\n");
-  navigator.clipboard.writeText(out).then(()=>toast("已複製座標，貼回程式碼比對 x/y 即可"))
-    .catch(()=>{ window.__exportedCoords=out; console.log(out); toast("複製失敗，已印在瀏覽器主控台 (F12)"); });
+  copyTextRobust(out, "已複製座標，貼回程式碼比對 x/y 即可");
 });
 
 /* ================================================================
@@ -902,6 +948,10 @@ document.getElementById("calibExport").addEventListener("click",()=>{
   function hideHint(){ zoomHintEl.classList.add("hide"); }
 
   mapSection.addEventListener("pointerdown",(e)=>{
+    /* ★浮在地圖上面的 UI 控制項（校準面板、縮放按鈕）點擊時，
+       不要讓地圖的拖曳/縮放手勢去搶這個 pointer，
+       不然這些按鈕會偶爾點不動，跟校準模式之前那個 bug 是同一種病。 */
+    if(e.target.closest(".calib-panel, .zoom-controls, .zoom-hint")) return;
     mapSection.setPointerCapture(e.pointerId);
     pointers.set(e.pointerId, relPoint(e));
     moveDist = 0;
@@ -941,9 +991,31 @@ document.getElementById("calibExport").addEventListener("click",()=>{
 
   function endPointer(e){
     pointers.delete(e.pointerId);
+    const wasCleanTap = moveDist<=6 && pointers.size===0;
     if(moveDist>6){ suppressClick=true; setTimeout(()=>suppressClick=false, 0); }
     if(pointers.size===0) mapSection.classList.remove("dragging");
     resetTracking();
+    /* ★地圖上所有「點一下」的判斷，統一在這裡處理，不再依賴瀏覽器自己合成的
+       click 事件——因為 touch-action:none + setPointerCapture 這組合，
+       在很多瀏覽器（不只手機，桌機也會）上會讓原生 click 不穩定觸發。
+       這裡改成我們自己判斷「是否為單純點一下、沒有拖曳」，直接處理接下來
+       該做什麼事，不管瀏覽器的 click 準不準都有效。 */
+    if(!wasCleanTap) return;
+    const targetEl = document.elementFromPoint(e.clientX, e.clientY);
+    if(calibMode){
+      performCalibClick(e.clientX, e.clientY, targetEl);
+      return;
+    }
+    if(!targetEl) return;
+    const markerEl = targetEl.closest(".marker");
+    if(!markerEl) return;
+    if(markerEl.classList.contains("cluster")){
+      const dx=parseFloat(markerEl.dataset.dx), dy=parseFloat(markerEl.dataset.dy);
+      if(window.__zoomAPI) window.__zoomAPI.zoomToPoint(dx, dy);
+    } else {
+      const spot = ALL.find(s=>s.key===markerEl.dataset.key);
+      if(spot && spot.type!=="star") openPanel(spot);
+    }
   }
   mapSection.addEventListener("pointerup", endPointer);
   mapSection.addEventListener("pointercancel", endPointer);
@@ -1040,6 +1112,7 @@ function remeasure(){ applyCrop(); if(window.__zoomAPI) window.__zoomAPI.measure
 
 window.addEventListener("resize", remeasure);
 
+calibToggle.style.display = IS_DEV ? "flex" : "none";   // 一開始就設定好，正式版不會閃一下才消失
 buildTabNav();
 applyCrop();
 renderMarkers();
