@@ -1,1127 +1,1079 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>月明洞筆記</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>月明洞筆記｜山區景點導覽地圖</title>
+
+<!-- Leaflet 核心 -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<!-- Leaflet 標記叢集插件 -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+
+<!-- 字體 -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Noto+Serif:wght@400;600;700&family=Noto+Serif+KR:wght@400;600;700&family=Noto+Serif+TC:wght@400;600;700&family=Noto+Sans:wght@400;500&family=Noto+Sans+KR:wght@400;500&family=Noto+Sans+TC:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;600;700&family=Noto+Sans+TC:wght@300;400;500;600&display=swap" rel="stylesheet">
 
 <style>
-:root{
-  --paper:#FDFCFA; --panel:#F6F4EF; --ink:#22241F; --pine:#33422F; --pine-soft:#5B6E52;
-  --stone:#8D8577; --stone-soft:#C9C3B6; --accent:#A9754A;
-  --font-display:"Noto Serif","Noto Serif KR","Noto Serif TC",serif;
-  --font-body:"Noto Sans","Noto Sans KR","Noto Sans TC",sans-serif;
-}
-*{ box-sizing:border-box; }
-html,body{ margin:0; padding:0; height:100%; background:var(--paper); color:var(--ink); font-family:var(--font-body); }
-@supports (height: 100dvh){ html,body{ height:100dvh; } }
+  :root{
+    /* ===== 設計代碼（淺色山徑系：呼應手繪地圖的米白地與赭石標記）===== */
+    --bg:         #faf7f1;   /* 主背景：暖白紙色 */
+    --panel:      #ffffff;   /* 卡片/面板底色 */
+    --panel-2:    #f1ece0;   /* 面板較深層（hover、輸入框） */
+    --border:     #e3dccb;
+    --rust:       #1d6b62;   /* 主強調色：深湖水藍綠 */
+    --rust-soft:  rgba(29,107,98,0.12);
+    --pine:       #6b7a4f;   /* 次要強調色：橄欖苔綠，跟主色區隔開 */
+    --pine-dark:  #4c5838;
+    --pine-soft:  rgba(107,122,79,0.14);
+    --stone:      #8b8377;
+    --text:       #2b2622;   /* 主文字：暖炭色，非死黑 */
+    --text-muted: #7a7266;
+    --danger:     #b3654f;
+    --radius:     10px;
+    --shadow:     0 10px 28px rgba(43,38,34,0.10);
 
-.topbar{ display:flex; align-items:center; justify-content:space-between; padding:14px 24px; border-bottom:1px solid var(--stone-soft); flex-wrap:wrap; gap:10px; }
-.brand{ font-family:var(--font-display); font-weight:600; font-size:19px; color:var(--pine); }
-.brand small{ display:block; font-family:var(--font-body); font-weight:400; font-size:12px; color:var(--pine-soft); margin-top:2px; }
-.topbar-right{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+    /* 手繪地圖分頁專用色彩──宣告在 :root 而不是 #panel-sketch，
+       這樣不管元素在 DOM 裡的哪個位置（包含被搬到 body 層級的
+       跳出卡片）都讀得到，不會因為變數作用範圍不夠而變透明。 */
+    --hm-paper:#FDFCFA; --hm-panel:#F6F4EF; --hm-ink:#22241F;
+    --hm-pine:#33422F; --hm-pine-soft:#5B6E52;
+    --hm-stone:#8D8577; --hm-stone-soft:#C9C3B6; --hm-accent:#A9754A;
+  }
 
-.lang-switch{ display:flex; border:1px solid var(--stone-soft); border-radius:999px; overflow:hidden; }
-.lang-switch button{ border:none; background:transparent; padding:6px 13px; font-size:12.5px; cursor:pointer; color:var(--pine-soft); }
-.lang-switch button.active{ background:var(--pine); color:#fff; }
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; margin:0; }
+  body{
+    background: var(--bg);
+    color: var(--text);
+    font-family:'Noto Sans TC', sans-serif;
+    font-weight:300;
+    overflow:hidden;
+  }
 
-/* ---------- 分頁導覽（頁數不固定，按 PAGES 陣列自動長按鈕） ---------- */
-.tab-nav{ display:flex; border:1px solid var(--stone-soft); border-radius:999px; overflow:hidden; flex-wrap:wrap; }
-.tab-nav button{ border:none; background:transparent; padding:6px 14px; font-size:12.5px; cursor:pointer; color:var(--pine-soft); white-space:nowrap; }
-.tab-nav button.active{ background:var(--accent); color:#fff; }
+  /* ===== 頂部標題列（signature：晨光暈）===== */
+  .app-header{
+    position:relative;
+    height:64px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:0 22px;
+    background:linear-gradient(180deg, #ffffff 0%, var(--bg) 100%);
+    border-bottom:1px solid var(--border);
+    z-index:20;
+    overflow:hidden;
+  }
+  .app-header::before{
+    content:"";
+    position:absolute;
+    top:-70px; left:38px;
+    width:150px; height:150px;
+    border-radius:50%;
+    background:radial-gradient(circle, rgba(29,107,98,0.16) 0%, rgba(29,107,98,0.04) 55%, transparent 75%);
+    filter:blur(2px);
+    pointer-events:none;
+  }
+  .brand{ display:flex; align-items:baseline; gap:10px; position:relative; }
+  .brand .zh{
+    font-family:'Noto Serif TC', serif;
+    font-weight:700;
+    font-size:22px;
+    letter-spacing:.06em;
+    color:var(--rust);
+  }
+  .brand .sub{
+    font-size:12px;
+    color:var(--text-muted);
+    letter-spacing:.12em;
+  }
 
-.calib-toggle{ display:flex; align-items:center; gap:7px; font-size:12px; color:var(--stone); border:1px dashed var(--stone-soft); padding:6px 12px; border-radius:999px; cursor:pointer; background:#fff; }
-.calib-toggle.on{ border-color:var(--accent); color:var(--accent); background:#FBF3EC; }
-.calib-toggle .dot{ width:7px; height:7px; border-radius:50%; background:var(--stone-soft); }
-.calib-toggle.on .dot{ background:var(--accent); }
+  /* 語言切換：程式邏輯保留，UI 先隱藏（未來多語需求再開啟） */
+  #langSwitch{ display:none; }
+  .lang-switch{ display:flex; gap:4px; }
+  .lang-switch button{
+    background:transparent;
+    border:1px solid var(--border);
+    color:var(--text-muted);
+    font-family:'Noto Sans TC', sans-serif;
+    font-size:12px;
+    padding:6px 10px;
+    border-radius:6px;
+    cursor:pointer;
+    transition:.2s;
+  }
+  .lang-switch button.active,
+  .lang-switch button:hover{
+    color:#fff;
+    background:var(--rust);
+    border-color:var(--rust);
+  }
 
-/* ---------- 地圖區（支援手機雙指縮放、拖曳平移，桌面滑鼠滾輪縮放） ---------- */
-.map-wrap{ position:relative; height:calc(100% - 58px); min-height:340px; overflow:hidden; background:radial-gradient(circle at 50% 50%, #fff 0%, #F1EEE7 100%); cursor:grab; touch-action:none; }
-.map-wrap.dragging{ cursor:grabbing; }
-.map-viewport{ position:absolute; inset:0; display:flex; align-items:flex-start; justify-content:center; padding:24px; transform-origin:0 0; will-change:transform; }
-.map-viewport.animating{ transition:transform .28s ease; }
+  /* ===== 分頁列 ===== */
+  .tabbar{
+    display:flex;
+    gap:2px;
+    padding:0 22px;
+    background:var(--bg);
+    border-bottom:1px solid var(--border);
+    z-index:19;
+  }
+  .tab-btn{
+    background:transparent;
+    border:none;
+    color:var(--text-muted);
+    font-family:'Noto Serif TC', serif;
+    font-size:14.5px;
+    letter-spacing:.05em;
+    padding:12px 18px;
+    cursor:pointer;
+    position:relative;
+    transition:color .2s;
+  }
+  .tab-btn:hover{ color:var(--text); }
+  .tab-btn.active{ color:var(--rust); }
+  .tab-btn.active::after{
+    content:"";
+    position:absolute;
+    left:14px; right:14px; bottom:0;
+    height:2px;
+    background:var(--rust);
+  }
 
-/* ★不放 transform，圓點永遠是原生大小/位置，不會跟著地圖縮放糊掉 */
-.marker-layer{ position:absolute; inset:0; z-index:4; pointer-events:none; overflow:hidden; touch-action:none; }
+  .tab-panel{ display:none; height:calc(100vh - 64px - 45px); }
+  .tab-panel.active{ display:flex; }
 
-.zoom-controls{ position:absolute; right:16px; bottom:16px; z-index:25; display:flex; flex-direction:column; gap:6px; }
-.zoom-controls button{ width:38px; height:38px; border-radius:50%; border:1px solid var(--stone-soft); background:rgba(253,252,250,.95); box-shadow:0 4px 12px rgba(0,0,0,.15); font-size:16px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; color:var(--pine); }
-.zoom-controls button:hover{ background:#fff; border-color:var(--accent); color:var(--accent); }
-.zoom-hint{ position:absolute; left:50%; bottom:14px; transform:translateX(-50%); z-index:20; font-size:11px; color:var(--stone); background:rgba(253,252,250,.9); padding:4px 10px; border-radius:999px; border:1px solid var(--stone-soft); pointer-events:none; opacity:.9; transition:opacity .4s ease; }
-.zoom-hint.hide{ opacity:0; }
+  /* ===== 地圖分頁：側欄 + 地圖 ===== */
+  #panel-map{ position:relative; }
+  .sidebar{
+    width:320px;
+    min-width:320px;
+    background:var(--panel);
+    border-right:1px solid var(--border);
+    display:flex;
+    flex-direction:column;
+    z-index:15;
+  }
+  .sidebar-search{
+    padding:14px 16px;
+    border-bottom:1px solid var(--border);
+  }
+  .sidebar-search input{
+    width:100%;
+    background:var(--panel-2);
+    border:1px solid var(--border);
+    border-radius:8px;
+    color:var(--text);
+    padding:9px 12px;
+    font-size:13px;
+    font-family:'Noto Sans TC', sans-serif;
+  }
+  .sidebar-search input::placeholder{ color:var(--text-muted); }
 
-.map-stage{ position:relative; width:100%; max-width:1200px; overflow:hidden; box-shadow:0 10px 30px rgba(51,66,47,.12); border:1px solid var(--stone-soft); background:#EDEAE2; }
-.map-image{ position:absolute; top:0; left:0; width:100%; height:auto; display:block; }
+  .spot-list{
+    flex:1;
+    overflow-y:auto;
+    padding:6px 0;
+  }
+  .spot-item{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:7px 16px;
+    cursor:pointer;
+    border-bottom:1px solid rgba(43,38,34,0.05);
+    transition:background .15s;
+  }
+  .spot-item:hover{ background:var(--panel-2); }
+  .spot-item.selected{ background:var(--rust-soft); }
+  .spot-thumb{
+    width:26px; height:26px;
+    border-radius:50%;
+    flex-shrink:0;
+    background:var(--panel-2);
+    border:1px solid var(--border);
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Noto Sans TC', sans-serif;
+    font-size:11px;
+    font-weight:500;
+    color:var(--text-muted);
+  }
+  .spot-info .spot-name{
+    font-family:'Noto Serif TC', serif;
+    font-size:13.5px;
+    color:var(--text);
+  }
+  .spot-info .spot-cat{
+    font-size:11px;
+    color:var(--text-muted);
+    margin-top:2px;
+  }
 
-.marker{ position:absolute; width:14px; height:14px; transform:translate(-50%,-50%); cursor:pointer; z-index:5; pointer-events:auto; }
-.marker svg{ width:100%; height:100%; overflow:visible; }
-.marker .ring{ fill:rgba(51,66,47,.10); stroke:var(--pine); stroke-width:1.2; }
-.marker:hover .ring{ fill:rgba(169,117,74,.28); stroke:var(--accent); }
-.marker.active .ring{ fill:rgba(169,117,74,.4); stroke:var(--accent); stroke-width:1.6; }
-.marker.calib-current .ring{ fill:rgba(169,117,74,.5); stroke:var(--accent); stroke-width:2; }
-.marker.calib-current::after{ content:""; position:absolute; inset:-6px; border-radius:50%; border:1.5px dashed var(--accent); animation:pulse 1.1s infinite; }
-@keyframes pulse{ 0%{transform:scale(.85);opacity:1;} 100%{transform:scale(1.6);opacity:0;} }
-.marker-tag{ position:absolute; top:100%; left:50%; transform:translate(-50%,1px); font-size:9px; line-height:1; color:var(--pine); background:rgba(253,252,250,.78); padding:1px 3px; border-radius:2px; pointer-events:none; white-space:nowrap; opacity:0; transition:opacity .15s ease; }
-/* 手機畫面小，49 個標籤在縮小狀態必然重疊，所以放大到夠近才顯示數字 */
-.marker-layer.labels-on .marker-tag{ opacity:1; }
-/* 電腦版螢幕大，地圖本來就顯示得夠大，數字一律顯示（維持原本的使用方式） */
-@media (min-width: 700px){
-  .marker-tag{ opacity:1; }
-}
-.marker.symbol .ring{ stroke:var(--pine-soft); stroke-dasharray:2,1.4; }
-.marker.star{ cursor:default; }
-.marker.star .star-shape{ fill:rgba(169,117,74,.25); stroke:var(--accent); stroke-width:1; }
-.marker.star:hover .star-shape{ fill:rgba(169,117,74,.55); }
-.marker.star.calib-current .star-shape{ fill:rgba(169,117,74,.65); stroke-width:1.4; }
+  #map{ flex:1; background:#eef1e8; }
 
-/* 群組點：這一帶有好幾個景點時合併顯示，數字＝景點數量 */
-.marker.cluster{ width:26px; height:26px; z-index:6; }
-.cluster-bubble{ width:26px; height:26px; border-radius:50%; background:var(--accent); color:#fff; font-size:12px; font-weight:600; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 8px rgba(0,0,0,.28); border:2px solid rgba(255,255,255,.9); }
-.marker.cluster:hover .cluster-bubble{ background:var(--pine); }
-.marker-audio-badge{ position:absolute; top:-5px; right:-5px; width:9px; height:9px; border-radius:50%; background:var(--accent); font-size:7px; display:flex; align-items:center; justify-content:center; color:#fff; }
-.marker-tooltip{ position:absolute; bottom:100%; left:50%; transform:translate(-50%,-4px); background:var(--ink); color:#fff; font-size:11px; padding:4px 8px; border-radius:4px; white-space:nowrap; opacity:0; pointer-events:none; transition:opacity .12s ease; z-index:20; }
-.marker:hover .marker-tooltip{ opacity:.95; }
+  /* Leaflet 淺色地圖微調 */
+  .leaflet-popup-content-wrapper{
+    background:var(--panel);
+    color:var(--text);
+    border-radius:10px;
+    box-shadow:var(--shadow);
+  }
+  .leaflet-popup-tip{ background:var(--panel); }
+  .leaflet-popup-content{ margin:14px 16px; width:240px !important; }
+  .popup-title{
+    font-family:'Noto Serif TC', serif;
+    font-size:15px;
+    color:var(--rust);
+    margin-bottom:4px;
+  }
+  .popup-desc{ font-size:12.5px; line-height:1.6; color:var(--text-muted); }
+  .popup-imgs{ display:flex; gap:6px; margin-top:8px; }
+  .popup-imgs div{
+    width:100%; height:60px; border-radius:6px;
+    background:linear-gradient(135deg, var(--pine), var(--panel-2));
+  }
+  .leaflet-container a.leaflet-popup-close-button{ color:var(--text-muted); }
 
-.calib-panel{ position:absolute; top:16px; left:16px; z-index:30; background:rgba(253,252,250,.97); border:1px solid var(--stone-soft); border-radius:10px; padding:14px 16px; width:250px; font-size:12.5px; box-shadow:0 6px 18px rgba(0,0,0,.08); display:none; }
-.calib-panel.show{ display:block; }
-.calib-panel h4{ margin:0 0 8px; font-family:var(--font-display); font-size:14px; color:var(--pine); }
-.calib-current-row{ margin-bottom:8px; }
-.calib-current-row strong{ color:var(--accent); }
-.calib-nav{ display:flex; gap:6px; margin-bottom:10px; }
-.calib-nav select{ flex:1; font-size:12px; padding:3px; }
-.calib-nav button{ border:1px solid var(--stone-soft); background:#fff; border-radius:5px; padding:3px 8px; cursor:pointer; font-size:12px; }
-.calib-export{ width:100%; background:var(--pine); color:#fff; border:none; border-radius:6px; padding:7px 0; cursor:pointer; font-size:12.5px; }
-.calib-hint{ margin-top:8px; color:var(--stone); font-size:11px; line-height:1.6; }
-.calib-readout{ position:absolute; bottom:12px; left:50%; transform:translateX(-50%); background:var(--ink); color:#fff; font-size:11.5px; padding:6px 12px; border-radius:6px; font-family:monospace; opacity:0; transition:opacity .2s ease; pointer-events:none; z-index:10; }
-.calib-readout.show{ opacity:.92; }
-.toast{ position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:var(--pine); color:#fff; padding:9px 18px; border-radius:20px; font-size:13px; opacity:0; transition:opacity .25s ease; pointer-events:none; z-index:100; }
-.toast.show{ opacity:1; }
+  .my-marker-icon{
+    width:12px; height:12px;
+    border-radius:50%;
+    border:1.5px solid var(--rust);
+    background:radial-gradient(circle, rgba(29,107,98,0.85), rgba(29,107,98,0.35));
+    box-shadow:0 0 4px 1px rgba(29,107,98,0.3);
+  }
+  .marker-cluster-custom{
+    background:rgba(107,122,79,0.85);
+    border:1.5px solid #fff;
+    border-radius:50%;
+    color:#fff;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Noto Sans TC', sans-serif;
+    font-size:12px;
+    box-shadow:0 2px 8px rgba(43,38,34,0.18);
+  }
 
+  /* ===== 相片集 / 影片分頁 ===== */
+  .content-scroll{
+    width:100%;
+    overflow-y:auto;
+    padding:26px 30px 60px;
+  }
+  .section-title{
+    font-family:'Noto Serif TC', serif;
+    font-size:19px;
+    color:var(--rust);
+    margin:0 0 4px;
+  }
+  .section-sub{ font-size:12.5px; color:var(--text-muted); margin-bottom:20px; }
 
-/* ================================================================
-   彈出視窗（跳出式介紹卡片）—— 取代原本的側欄
-   手機／桌面都用同一種樣式：置中的圓角白底卡片＋半透明遮罩
-   ================================================================ */
-.modal-backdrop{ position:fixed; inset:0; background:rgba(34,36,31,.45); z-index:60; display:flex; align-items:flex-end; justify-content:center; opacity:0; pointer-events:none; transition:opacity .25s ease; }
-.modal-backdrop.show{ opacity:1; pointer-events:auto; }
-.modal-card{ background:var(--panel); width:100%; max-width:560px; max-height:86vh; overflow-y:auto; border-radius:20px 20px 0 0; position:relative; box-shadow:0 -12px 40px rgba(0,0,0,.3); transform:translateY(100%); transition:transform .32s ease; }
-.modal-backdrop.show .modal-card{ transform:translateY(0); }
+  .gallery-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(180px,1fr));
+    gap:12px;
+  }
+  .gallery-card{
+    aspect-ratio:4/3;
+    border-radius:var(--radius);
+    background:linear-gradient(135deg, var(--pine), var(--panel-2));
+    display:flex; align-items:flex-end;
+    padding:10px;
+    cursor:pointer;
+    position:relative;
+    overflow:hidden;
+    border:1px solid var(--border);
+    transition:transform .18s;
+  }
+  .gallery-card:hover{ transform:translateY(-3px); }
+  .gallery-card span{
+    font-size:12px;
+    color:#fff;
+    background:rgba(43,38,34,0.55);
+    padding:3px 8px;
+    border-radius:5px;
+  }
 
-/* 電腦版（跟其他地方一樣用 700px 當斷點）：面板改成從右側滑出，不是從下面彈出 */
-@media (min-width: 700px){
-  .modal-backdrop{ align-items:stretch; justify-content:flex-end; }
-  .modal-card{ width:420px; max-width:420px; height:100%; max-height:100%; border-radius:0; box-shadow:-12px 0 40px rgba(0,0,0,.3); transform:translateX(100%); }
-  .modal-backdrop.show .modal-card{ transform:translateX(0); }
-}
-.modal-drag-handle{ position:sticky; top:0; display:flex; justify-content:center; padding:8px 0 4px; background:var(--panel); z-index:2; }
-.modal-drag-handle span{ width:36px; height:4px; border-radius:99px; background:var(--stone-soft); display:block; }
-.modal-close{ position:absolute; top:12px; right:12px; width:32px; height:32px; border-radius:50%; border:none; background:rgba(255,255,255,.9); color:var(--ink); font-size:18px; cursor:pointer; z-index:5; box-shadow:0 2px 6px rgba(0,0,0,.15); }
+  .terrain-block{ max-width:640px; margin-bottom:32px; }
+  .terrain-image{
+    width:100%; aspect-ratio:16/9; border-radius:var(--radius);
+    background:linear-gradient(135deg, var(--pine), var(--panel-2));
+    margin-bottom:12px;
+  }
+  .terrain-block h4{
+    font-family:'Noto Serif TC', serif;
+    font-size:16px; color:var(--rust); margin:0 0 8px;
+  }
+  .terrain-block p{ font-size:14px; line-height:1.8; color:var(--text-muted); margin:0; }
 
-.gallery-main{ width:100%; aspect-ratio:4/3; background:linear-gradient(135deg,#DCD6C7,#EDEAE2); display:flex; align-items:center; justify-content:center; color:var(--stone); font-size:12px; border-radius:20px 20px 0 0; background-size:cover; background-position:center; }
-.gallery-thumbs{ display:flex; gap:6px; padding:8px 10px; overflow-x:auto; background:var(--panel); border-bottom:1px solid var(--stone-soft); }
-.gallery-thumbs img{ width:52px; height:52px; object-fit:cover; border-radius:4px; cursor:pointer; border:2px solid transparent; flex:0 0 auto; }
-.gallery-thumbs img.active{ border-color:var(--accent); }
+  /* 燈箱 */
+  .lightbox{
+    position:fixed; top:109px; left:0; right:0; bottom:0; background:rgba(43,38,34,0.75);
+    display:none; align-items:center; justify-content:center; z-index:100;
+  }
+  .lightbox.show{ display:flex; }
+  .lightbox-inner{
+    width:min(80vw,700px); aspect-ratio:4/3;
+    background:linear-gradient(135deg, var(--pine), var(--pine-dark));
+    border-radius:12px;
+    display:flex; align-items:center; justify-content:center;
+    color:#fff; font-family:'Noto Serif TC', serif; font-size:16px;
+    position:relative;
+  }
+  .lightbox-close{
+    position:absolute; top:-38px; right:0;
+    background:none; border:none; color:var(--text); font-size:26px; cursor:pointer;
+  }
 
-.panel-body{ padding:22px 26px 32px; }
-.panel-top-row{ display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
-.panel-eyebrow{ font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--accent); margin-bottom:6px; }
-.panel-title{ font-family:var(--font-display); font-size:22px; font-weight:600; color:var(--pine); margin:0 0 10px; }
-.audio-btn{ flex:0 0 auto; width:34px; height:34px; border-radius:50%; border:1px solid var(--stone-soft); background:#fff; cursor:pointer; font-size:14px; color:var(--pine); display:flex; align-items:center; justify-content:center; }
-.audio-btn.playing{ background:var(--accent); color:#fff; border-color:var(--accent); }
-.panel-rule{ border:none; border-top:1px solid var(--stone-soft); margin:12px 0 16px; }
-.panel-desc{ font-size:14px; line-height:1.9; color:var(--ink); white-space:pre-line; }
-.translation-note{ font-size:11px; color:var(--stone); margin-top:10px; font-style:italic; }
+  /* 捲軸美化 */
+  ::-webkit-scrollbar{ width:8px; }
+  ::-webkit-scrollbar-thumb{ background:var(--border); border-radius:4px; }
 
-/* ---------- 地形照片分頁（單純瀏覽用，跟主地圖無關） ---------- */
-.gallery-section{ height:calc(100% - 58px); overflow-y:auto; padding:24px; }
-.gallery-grid{ max-width:1100px; margin:0 auto; display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:12px; }
-.gallery-cell{ aspect-ratio:4/3; border-radius:10px; overflow:hidden; cursor:pointer; background:#EDEAE2; border:1px solid var(--stone-soft); }
-.gallery-cell img{ width:100%; height:100%; object-fit:cover; display:block; transition:transform .2s ease; }
-.gallery-cell:hover img{ transform:scale(1.05); }
-.gallery-empty{ max-width:480px; margin:60px auto; text-align:center; color:var(--stone); font-size:13px; line-height:1.9; border:1px dashed var(--stone-soft); border-radius:12px; padding:40px 20px; }
+  @media (max-width:760px){
+    .sidebar{ position:absolute; left:0; top:0; bottom:0; z-index:30; transform:translateX(-100%); transition:.25s; }
+    .sidebar.open{ transform:translateX(0); }
+    .sidebar-toggle{
+      position:absolute; top:10px; left:10px; z-index:25;
+      background:var(--panel); border:1px solid var(--border); color:var(--text);
+      border-radius:8px; padding:8px 10px; cursor:pointer;
+      box-shadow:var(--shadow);
+    }
+  }
 
-/* ---------- 燈箱：點地形照片放大看 ---------- */
-.lightbox-backdrop{ position:fixed; inset:0; background:rgba(20,21,18,.9); z-index:70; display:flex; align-items:center; justify-content:center; opacity:0; pointer-events:none; transition:opacity .2s ease; }
-.lightbox-backdrop.show{ opacity:1; pointer-events:auto; }
-.lightbox-backdrop img{ max-width:92vw; max-height:86vh; object-fit:contain; border-radius:6px; }
-.lightbox-close{ position:absolute; top:16px; right:20px; background:transparent; border:none; color:#fff; font-size:28px; cursor:pointer; }
-.lightbox-nav{ position:absolute; top:50%; transform:translateY(-50%); background:rgba(255,255,255,.15); border:none; color:#fff; font-size:22px; width:44px; height:44px; border-radius:50%; cursor:pointer; }
-.lightbox-nav.prev{ left:16px; } .lightbox-nav.next{ right:16px; }
+  /* ===================================================================
+     手繪地圖分頁（精選導覽）── 獨立視覺語言，不套用主題色，維持原始
+     手繪藝術風格。所有選取器限定在 #panel-sketch 或 hm- 前綴 class 內，
+     避免跟主題其他分頁互相干擾。
+     =================================================================== */
+  #panel-sketch{
+    background:var(--hm-paper); color:var(--hm-ink);
+    position:relative; width:100%; height:100%; overflow:hidden;
+  }
+  .hm-map-wrap{ position:relative; width:100%; height:100%; overflow:hidden;
+    background:radial-gradient(circle at 50% 50%, #fff 0%, #F1EEE7 100%); cursor:grab; touch-action:none;
+    user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; }
+  .hm-map-wrap.dragging{ cursor:grabbing; }
+  .hm-map-viewport{ position:absolute; inset:0; display:flex; align-items:flex-start; justify-content:center; padding:24px; transform-origin:0 0; will-change:transform; }
+  .hm-map-viewport.animating{ transition:transform .28s ease; }
+  .hm-marker-layer{ position:absolute; inset:0; z-index:4; pointer-events:none; overflow:hidden; touch-action:none; }
+  .hm-zoom-controls{ position:absolute; right:16px; bottom:16px; z-index:25; display:flex; flex-direction:column; gap:6px; }
+  .hm-zoom-controls button{ width:38px; height:38px; border-radius:50%; border:1px solid var(--hm-stone-soft); background:rgba(253,252,250,.95); box-shadow:0 4px 12px rgba(0,0,0,.15); font-size:16px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; color:var(--hm-pine); }
+  .hm-zoom-controls button:hover{ background:#fff; border-color:var(--hm-accent); color:var(--hm-accent); }
+  .hm-zoom-hint{ position:absolute; left:50%; bottom:14px; transform:translateX(-50%); z-index:20; font-size:11px; color:var(--hm-stone); background:rgba(253,252,250,.9); padding:4px 10px; border-radius:999px; border:1px solid var(--hm-stone-soft); pointer-events:none; opacity:.9; transition:opacity .4s ease; }
+  .hm-zoom-hint.hide{ opacity:0; }
+  .hm-map-stage{ position:relative; width:100%; max-width:1200px; overflow:hidden; box-shadow:0 10px 30px rgba(51,66,47,.12); border:1px solid var(--hm-stone-soft); background:#EDEAE2; }
+  .hm-map-image{ position:absolute; top:0; left:0; width:100%; height:auto; display:block;
+    -webkit-user-drag:none; user-drag:none; -webkit-user-select:none; user-select:none; pointer-events:none; }
 
-/* ---------- 影片分頁 ---------- */
-.video-section{ height:calc(100% - 58px); display:flex; align-items:center; justify-content:center; padding:24px; background:#12130f; }
-.video-stage{ width:100%; max-width:1100px; aspect-ratio:16/9; background:#000; border-radius:10px; overflow:hidden; }
-.video-stage video, .video-stage iframe{ width:100%; height:100%; display:block; border:none; }
-.video-stage .gallery-empty{ color:var(--stone-soft); border-color:#3a3c34; margin:0; }
+  .hm-marker{ position:absolute; width:14px; height:14px; transform:translate(-50%,-50%); cursor:pointer; z-index:5; pointer-events:auto; }
+  .hm-marker svg{ width:100%; height:100%; overflow:visible; }
+  .hm-marker .hm-ring{ fill:rgba(51,66,47,.10); stroke:var(--hm-pine); stroke-width:1.2; }
+  .hm-marker:hover .hm-ring{ fill:rgba(169,117,74,.28); stroke:var(--hm-accent); }
+  .hm-marker-tag{ position:absolute; top:100%; left:50%; transform:translate(-50%,1px); font-size:9px; line-height:1; color:var(--hm-pine); background:rgba(253,252,250,.78); padding:1px 3px; border-radius:2px; pointer-events:none; white-space:nowrap; opacity:0; transition:opacity .15s ease; }
+  .hm-marker-layer.labels-on .hm-marker-tag{ opacity:1; }
+  @media (min-width: 700px){ .hm-marker-tag{ opacity:1; } }
+  .hm-marker.symbol .hm-ring{ stroke:var(--hm-pine-soft); stroke-dasharray:2,1.4; }
 
-@media (max-width: 600px){
-  .modal-card{ max-height:90vh; }
-  .calib-panel{ width:180px; font-size:11.5px; }
-  .gallery-grid{ grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); }
-}
+  .hm-marker.cluster{ width:26px; height:26px; z-index:6; }
+  .hm-cluster-bubble{ width:26px; height:26px; border-radius:50%; background:var(--hm-accent); color:#fff; font-size:12px; font-weight:600; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 8px rgba(0,0,0,.28); border:2px solid rgba(255,255,255,.9); }
+  .hm-marker.cluster:hover .hm-cluster-bubble{ background:var(--hm-pine); }
+  .hm-marker-tooltip{ position:absolute; bottom:100%; left:50%; transform:translate(-50%,-4px); background:var(--hm-ink); color:#fff; font-size:11px; padding:4px 8px; border-radius:4px; white-space:nowrap; opacity:0; pointer-events:none; transition:opacity .12s ease; z-index:20; }
+  .hm-marker:hover .hm-marker-tooltip{ opacity:.95; }
+
+  /* 跳出式底部抽屜（手機）／右側面板（桌面）── 跟主地圖的抽屜互動邏輯一致 */
+  .hm-modal-backdrop{ position:fixed; top:109px; left:0; right:0; bottom:0; background:rgba(34,36,31,.45); z-index:60; display:flex; align-items:flex-end; justify-content:center; opacity:0; pointer-events:none; transition:opacity .25s ease; }
+  .hm-modal-backdrop.show{ opacity:1; pointer-events:auto; }
+  .hm-modal-card{ background:var(--hm-panel); width:100%; max-width:560px; max-height:86vh; overflow-y:auto; border-radius:20px 20px 0 0; position:relative; box-shadow:0 -12px 40px rgba(0,0,0,.3); transform:translateY(100%); transition:transform .32s ease; }
+  .hm-modal-backdrop.show .hm-modal-card{ transform:translateY(0); }
+  @media (min-width: 700px){
+    .hm-modal-backdrop{ align-items:stretch; justify-content:flex-end; }
+    .hm-modal-card{ width:420px; max-width:420px; height:100%; max-height:100%; border-radius:0; box-shadow:-12px 0 40px rgba(0,0,0,.3); transform:translateX(100%); }
+    .hm-modal-backdrop.show .hm-modal-card{ transform:translateX(0); }
+  }
+  .hm-modal-drag-handle{ position:sticky; top:0; display:flex; justify-content:center; padding:8px 0 4px; background:var(--hm-panel); z-index:2; }
+  .hm-modal-drag-handle span{ width:36px; height:4px; border-radius:99px; background:var(--hm-stone-soft); display:block; }
+  .hm-modal-close{ position:absolute; top:12px; right:12px; width:32px; height:32px; border-radius:50%; border:none; background:rgba(255,255,255,.9); color:var(--hm-ink); font-size:18px; cursor:pointer; z-index:5; box-shadow:0 2px 6px rgba(0,0,0,.15); }
+  .hm-gallery-main{ width:100%; aspect-ratio:4/3; background:linear-gradient(135deg,#DCD6C7,#EDEAE2); display:flex; align-items:center; justify-content:center; color:var(--hm-stone); font-size:12px; border-radius:20px 20px 0 0; background-size:cover; background-position:center; }
+  .hm-gallery-thumbs{ display:flex; gap:6px; padding:8px 10px; overflow-x:auto; background:var(--hm-panel); border-bottom:1px solid var(--hm-stone-soft); }
+  .hm-gallery-thumbs img{ width:52px; height:52px; object-fit:cover; border-radius:4px; cursor:pointer; border:2px solid transparent; flex:0 0 auto; }
+  .hm-gallery-thumbs img.active{ border-color:var(--hm-accent); }
+  .hm-panel-body{ padding:22px 26px 32px; font-family:'Noto Sans TC', sans-serif; }
+  .hm-panel-eyebrow{ font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--hm-accent); margin-bottom:6px; }
+  .hm-panel-title{ font-family:'Noto Serif TC', serif; font-size:22px; font-weight:600; color:var(--hm-pine); margin:0 0 10px; }
+  .hm-panel-rule{ border:none; border-top:1px solid var(--hm-stone-soft); margin:12px 0 16px; }
+  .hm-panel-desc{ font-size:14px; line-height:1.9; color:var(--hm-ink); white-space:pre-line; }
+
+  .hm-toast{ position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:var(--hm-pine); color:#fff; padding:9px 18px; border-radius:20px; font-size:13px; opacity:0; transition:opacity .25s ease; pointer-events:none; z-index:100; }
+  .hm-toast.show{ opacity:1; }
 </style>
 </head>
 <body>
 
-<div class="topbar">
-  <div class="brand">月明洞筆記
-    <small id="brandTagline">戶外導覽地圖 mockup — 點擊圓點查看景點介紹</small>
+<header class="app-header">
+  <div class="brand">
+    <span class="zh">月明洞筆記</span>
+    <span class="sub" data-i18n="subtitle">山區景點導覽地圖</span>
   </div>
-  <div class="topbar-right">
-
-    <!-- ============================================================
-         ★ 英文／韓文切換：目前先註解掉不顯示（現階段只做中文）
-         之後真的要開放英韓文時，把下面這個 <div class="lang-switch">
-         整塊的註解拿掉即可，程式邏輯（getText/翻譯 fallback）都還在，
-         不用重寫。
-         ============================================================ -->
-    <!--
-    <div class="lang-switch" id="langSwitch">
-      <button data-lang="zh">中文</button>
-      <button data-lang="en">EN</button>
-      <button data-lang="ko">한국어</button>
-    </div>
-    -->
-
-    <!-- 分頁導覽：按下面 JS 的 PAGES 陣列自動長出按鈕，要加減分頁只改 PAGES 就好 -->
-    <div class="tab-nav" id="tabNav"></div>
-
-    <div class="calib-toggle" id="calibToggle"><span class="dot"></span><span>校準座標模式</span></div>
+  <div class="lang-switch" id="langSwitch">
+    <button data-lang="zh" class="active">中</button>
+    <button data-lang="en">EN</button>
+    <button data-lang="ko">한</button>
   </div>
-</div>
+</header>
 
-<!-- ============ 分頁 1：主地圖（互動圓點＋介紹，支援手機雙指縮放/拖曳） ============ -->
-<div class="map-wrap" id="mapSection">
-  <div class="map-viewport" id="mapViewport">
-    <div class="map-stage" id="mapStage">
-      <img class="map-image" id="mapImage" src="bg.webp" alt="園區地圖底圖">
-    </div>
-  </div>
+<nav class="tabbar" id="tabbar">
+  <button class="tab-btn active" data-tab="panel-sketch">精選導覽</button>
+  <button class="tab-btn" data-tab="panel-map">地圖導覽</button>
+  <button class="tab-btn" data-tab="panel-terrain">地形導覽</button>
+  <button class="tab-btn" data-tab="panel-exhibit">特展</button>
+</nav>
 
-  <!-- ★圓點圖層獨立在外面，不會被地圖的縮放 transform 影響，永遠用原生解析度畫，
-       這樣放大縮小時圓點/文字都不會糊（糊的問題是底圖影像放大本身的物理限制，
-       跟圓點是兩回事，圓點在這裡處理後就不該再糊了） -->
-  <div class="marker-layer" id="markerLayer"></div>
-
-  <!-- 校準面板放在縮放容器「外面」，才不會跟著地圖一起被放大縮小 -->
-  <div class="calib-panel" id="calibPanel">
-    <h4>校準座標</h4>
-    <div class="calib-current-row">目前選取：<strong id="calibCurrentLabel">—</strong></div>
-    <div class="calib-nav">
-      <button id="calibPrev">←</button>
-      <select id="calibSelect"></select>
-      <button id="calibNext">→</button>
-    </div>
-    <button class="calib-export" id="calibExport">複製全部座標</button>
-    <div class="calib-hint">點地圖＝設定「目前選取」的座標，設定後自動跳下一個。標完按「複製全部座標」，貼回程式碼取代對應的 x/y 即可。（可以先放大再點，會更準）</div>
-  </div>
-  <div class="zoom-controls">
-    <button id="zoomInBtn" title="放大">＋</button>
-    <button id="zoomOutBtn" title="縮小">－</button>
-    <button class="zoom-reset-btn" id="zoomResetBtn" title="回到整張地圖">⤢</button>
-  </div>
-  <div class="zoom-hint" id="zoomHint">雙指放大地圖，靠近後會顯示景點編號</div>
-</div>
-
-<!-- ============ 分頁 2~N：地形照片（純瀏覽，點圖放大） ============ -->
-<div class="gallery-section" id="gallerySection" style="display:none;">
-  <div class="gallery-grid" id="galleryGrid"></div>
-</div>
-
-<!-- ============ 分頁：影片／稜線動畫 ============ -->
-<div class="video-section" id="videoSection" style="display:none;">
-  <div class="video-stage" id="videoStage"></div>
-</div>
-
-<!-- 燈箱：地形照片點下去放大看 -->
-<div class="lightbox-backdrop" id="lightboxBackdrop">
-  <button class="lightbox-nav prev" id="lightboxPrev">‹</button>
-  <img id="lightboxImg" src="" alt="">
-  <button class="lightbox-nav next" id="lightboxNext">›</button>
-  <button class="lightbox-close" id="lightboxClose">×</button>
-</div>
-
-<div class="modal-backdrop" id="modalBackdrop">
-  <div class="modal-card" id="modalCard">
-    <div class="modal-drag-handle"><span></span></div>
-    <button class="modal-close" id="modalClose">×</button>
-    <div class="gallery-main" id="galleryMain">【照片佔位】</div>
-    <div class="gallery-thumbs" id="galleryThumbs" style="display:none;"></div>
-    <div class="panel-body">
-      <div class="panel-top-row">
-        <div>
-          <div class="panel-eyebrow" id="panelEyebrow">SPOT 01</div>
-          <h2 class="panel-title" id="panelTitle">景點名稱</h2>
-        </div>
-        <button class="audio-btn" id="audioBtn" style="display:none;">▶</button>
+<!-- ============ 精選導覽分頁（手繪地圖，現為主要導覽）============ -->
+<section class="tab-panel active" id="panel-sketch">
+  <div class="hm-map-wrap" id="hmMapSection">
+    <div class="hm-map-viewport" id="hmMapViewport">
+      <div class="hm-map-stage" id="hmMapStage">
+        <img class="hm-map-image" id="hmMapImage" src="bg.webp" alt="手繪地圖底圖">
       </div>
-      <audio id="audioEl"></audio>
-      <hr class="panel-rule">
-      <p class="panel-desc" id="panelDesc">景點介紹文字佔位。</p>
-      <div class="translation-note" id="translationNote" style="display:none;"></div>
     </div>
+    <div class="hm-marker-layer" id="hmMarkerLayer"></div>
+    <div class="hm-zoom-controls">
+      <button id="hmZoomInBtn" title="放大">＋</button>
+      <button id="hmZoomOutBtn" title="縮小">－</button>
+      <button id="hmZoomResetBtn" title="回到整張地圖">⤢</button>
+    </div>
+    <div class="hm-zoom-hint" id="hmZoomHint">雙指放大地圖，靠近後會顯示景點編號</div>
+  </div>
+</section>
+
+<!-- ============ 地圖分頁（真實 GPS，現在只標大範圍地形：山、谷、稜線）============ -->
+<section class="tab-panel" id="panel-map">
+  <button class="sidebar-toggle" id="sidebarToggle">☰</button>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-search">
+      <input type="text" id="searchInput" placeholder="搜尋地形名稱…" />
+    </div>
+    <div class="spot-list" id="spotList"></div>
+  </aside>
+  <div id="map"></div>
+</section>
+
+<!-- ============ 地形導覽分頁：純文字＋圖片，介紹地形特色，不是地圖 ============ -->
+<section class="tab-panel" id="panel-terrain">
+  <div class="content-scroll">
+    <h2 class="section-title">地形導覽</h2>
+    <p class="section-sub">認識月明洞的山勢地形與環境特色</p>
+    <div id="terrainContainer"></div>
+  </div>
+</section>
+
+<!-- ============ 特展分頁：純圖片＋文字網格，季節性展品（不放地圖上，因為會被搬走）============ -->
+<section class="tab-panel" id="panel-exhibit">
+  <div class="content-scroll">
+    <h2 class="section-title" id="exhibitTitle">特展</h2>
+    <p class="section-sub" id="exhibitSub">當期限定展出，展期結束後將收回管理區</p>
+    <div class="gallery-grid" id="exhibitGrid"></div>
+  </div>
+</section>
+
+<div class="lightbox" id="lightbox">
+  <div class="lightbox-inner">
+    <button class="lightbox-close" id="lightboxClose">×</button>
+    <span id="lightboxLabel"></span>
   </div>
 </div>
 
-<div class="toast" id="toast"></div>
+<!-- 精選導覽（手繪地圖）專用跳出卡片 -->
+<div class="hm-modal-backdrop" id="hmModalBackdrop">
+  <div class="hm-modal-card" id="hmModalCard">
+    <div class="hm-modal-drag-handle"><span></span></div>
+    <button class="hm-modal-close" id="hmModalClose">×</button>
+    <div class="hm-gallery-main" id="hmGalleryMain">【照片佔位】</div>
+    <div class="hm-gallery-thumbs" id="hmGalleryThumbs" style="display:none;"></div>
+    <div class="hm-panel-body">
+      <div class="hm-panel-eyebrow" id="hmPanelEyebrow">景點 01</div>
+      <h2 class="hm-panel-title" id="hmPanelTitle">景點名稱</h2>
+      <hr class="hm-panel-rule">
+      <p class="hm-panel-desc" id="hmPanelDesc">景點介紹文字佔位。</p>
+    </div>
+  </div>
+</div>
+<div class="hm-toast" id="hmToast"></div>
 
 <script>
-/* ================================================================
-   整體架構：網站現在是「分頁」結構（見下面的 PAGES 陣列）。
-   第一頁固定是主地圖（互動圓點），資料就是這裡的 SPOTS_MAP1／
-   SYMBOLS_MAP1。第二頁以後（地形照片、影片）都在 PAGES 那邊設定，
-   跟主地圖的點位資料完全分開、互不影響。
-   ================================================================ */
-
-/* ----------------------------------------------------------------
-   ★★★ 要幫某一筆補「照片／長文字／語音」時，直接複製下面這個範例，
-   蓋掉對應那一筆就好（key 對到哪個就改哪個）：
-
-   {key:"pt05", x:53.2, y:62.0, label:"05", name:"韓屋井",
-     desc:"這裡貼正式的中文介紹文字，可以很長，換行也可以，不會影響版面。",
-     photos:["photos/pt05-a.jpg","photos/pt05-b.jpg","photos/pt05-c.jpg"],
-     audio:"audio/pt05.mp3"
-   },
-
-   - desc 沒寫 → 會自動顯示「站位文字」
-   - photos 沒寫，或寫 [] → 面板顯示「照片佔位」，不會出錯
-   - audio 沒寫，或寫 null → 不會出現播放鍵，不會出錯
-   - name_en / name_ko / desc_en / desc_ko 都是選填，現階段先不用管
-   ---------------------------------------------------------------- */
-/* ============ 地圖模式 1：手繪地圖 ─ 這裡放地圖1（主要那張）的點位 ============ */
-const SPOTS_MAP1 = [
-  {key:"pt01",x:51.7,y:80.6,label:"01",name:"316空提紀念館",
-    name_en:"316 Rapture Memorial Hall",
-    name_ko:"성자 사랑의 집 (316 휴거 기념관)",
-    desc:"＜316館＞共三層樓、十六根柱子。在這裡達成了「　神的創造目的──空提」，所以這裡也是＜空提館＞。空提就是「愛一體」，亦即「與三位結婚」，因此這裡也是＜婚宴會館＞。也可以把它視為空提館、生命誕生館、靈魂的理想世界──黃金天國。整個月明洞、　神的聖殿就如同這樣的立場",
-    photos:["photos/pt01-a.jpg","photos/pt01-b.jpg","photos/pt01-c.jpg"],
-    audio:"audio/01.mp3",
-    desc_en:"The <316 Hall> has three floors and sixteen pillars. The \"God's purpose of creation-Rapture\" was achieved here, so this is also the \"Rapture Hall\". Rapture is to become \"one with love\", that is, \"marrying the Trinity\", so it is also the <wedding banquet hall>. It can also be regarded as the hall of rapture, the birth of life hall, the ideal world of the soul -- golden kingdom of heaven. In the same way, the whole Wolmyeongdong and the temple of God are in this position.",
-    desc_ko:"성자 사랑의 집은 3년 이상 하나님의 구상을 받고 짓기 시작해 2013년 9월 12일에 헌당한 건물 성전이다.수차례 설계를 변경하다가 아름답고 신비하고 웅장하게 하라는 성자의 구상에 따라 현재의 모습으로 짓게 되었다. 이곳은 하나님과 사랑으로 일체된 곳, 하늘의 신부를 상징하는 곳이다. 지하1층은 화장실과 명샵(매점), 1층은 식당과 사무실, 2층은 미술관과 중강당, 3~4층은 1200명 이상 수용할 수 있는 본당으로 이뤄졌다.  성자 사랑의 집은 '316 휴거 기념관'이라고도 부르는데, 3층 건물로써 앞에 기둥 8개, 건물 좌우에 기둥 8개를 합해서 총 16개의 기둥이 세워져 있습니다.정명석 목사는 말씀을 전하며 생명 구원사업을 하다가 교인들이 많아지면서 월명동 자연성전을 건축했습니다. 그 다음에 육적인 건물성전인 성자 사랑의 집을 건축했고 이후로는 전국에 하나 둘씩 성전을 사고 건축하는 역사가 일어났습니다."
+/* =========================================================
+   月明洞筆記 —— 地圖導覽（真實 GPS）資料
+   ★ 分工調整：這裡現在只放「需要查資料才能定位的大範圍地形」
+   （山名、谷名、稜線等），讓使用者理解周邊地理環境；密集的小
+   景點標記交給「精選導覽」的手繪地圖處理，避免兩邊重工。
+   說明：座標目前先放在月明洞中心點附近當佔位，等您查證實際
+   山谷、稜線位置後，替換 lat/lng 即可，其餘結構不用動。
+   ========================================================= */
+const spotsData = [
+  {
+    id: "terrain-01",
+    name: { zh:"矽谷", en:"", ko:"" },
+    lat: 36.126500, lng: 127.367500,
+    desc: { zh:"【待查證】需要確認實際位置與地形描述。", en:"", ko:"" },
+    images: [],
+    video: null
   },
-  {key:"pt02",x:47.5,y:71.4,label:"02",name:"月明湖與月明亭"},
-  {key:"pt03",x:61.6,y:59.5,label:"03",name:"聖靈瀑布"},
-  {key:"pt04",x:64.8,y:61.7,label:"04",name:"聖靈瀑布上亭子"},
-  {key:"pt05",x:66.2,y:62.3,label:"05",name:"占星台"},
-  {key:"pt06",x:55.2,y:58,label:"06",name:"癩蛤蟆石"},
-  {key:"pt07",x:52.5,y:58,label:"07",name:"33頓石"},
-  {key:"pt08",x:49.6,y:56.7,label:"08",name:"聖子石"},
-  {key:"pt09",x:47.2,y:56.6,label:"09",name:"人面具相石"},
-  {key:"pt10",x:45.5,y:57,label:"10",name:"扁平石"},
-  {key:"pt11",x:43.8,y:56,label:"11",name:"大象石"},
-  {key:"pt12",x:52,y:51.4, label:"12",name:"石頭作品"},
-  {key:"pt13",x:51.5,y:45.6, label:"13",name:"體會松"},
-  {key:"pt14",x:50.8,y:38.7,label:"14",name:"青瓦屋"},
-  {key:"pt15",x:48,y:42.2,label:"15",name:"聖靈松"},
-  {key:"pt16",x:47.4,y:35,label:"16",name:"宣教中心"},
-  {key:"pt17",x:44.1,y:38.1,label:"17",name:"神之路"},
-  {key:"pt18",x:41.5,y:41.8,label:"18",name:"禱告山"},
-  {key:"pt19",x:38.5,y:41,label:"19",name:"主愛之泉"},
-  {key:"pt21",x:36.7,y:40.4,label:"21",name:"象徵松"},
-  {key:"pt22",x:36.6,y:37.6,label:"22",name:"老家紀念館"},
-  {key:"pt23",x:33.8,y:35.5,label:"23",name:"禱告洞"},
-  {key:"pt24",x:31.5,y:36.4,label:"24",name:"山泉水"},
-  {key:"pt25",x:27.9,y:34.7,label:"25",name:"草坪聖殿"},
-  {key:"pt26",x:14.6,y:31.3,label:"26",name:"景點26"},
-  {key:"pt27",x:18.7,y:29.8,label:"27",name:"山水景石"},
-  {key:"pt28",x:26.3,y:58.2,label:"28",name:"信心山"},
-  {key:"pt46",x:28.3,y:40.2,label:"46",name:"聖子雕像"},
-  {key:"pt29",x:30.4,y:42.3,label:"29",name:"第一瀑布"},
-  {key:"pt30",x:33.2,y:50.2,label:"30",name:"野心作"},
-  {key:"pt31",x:34.7,y:51.6,label:"31",name:"老鷹石"},
-  {key:"pt32",x:39,y:68,label:"32",name:"神之亭"},
-  {key:"pt33",x:40.5,y:65.6,label:"33",name:"神的瀑布"},
-  {key:"pt34",x:54,y:23.1,label:"34",name:"田谷"},
-  {key:"pt35",x:35.2,y:8.6,label:"35",name:"展望台"},
-  {key:"pt36",x:84,y:55,label:"36",name:"城隍堂"},
-  {key:"pt37",x:68.4,y:41.2,label:"37",name:"星峰亭"},
-  {key:"pt38",x:64.5,y:42.1,label:"38",name:"王之座椅松"},
-  {key:"pt39",x:63.5,y:40.6,label:"39",name:"另一顆松樹"},
-  {key:"pt41",x:38.4,y:79.4,label:"41",name:"清算館"},
-  {key:"pt42",x:18.8,y:20.8,label:"42",name:"圓山多福松"},
-  {key:"pt43",x:26.2,y:20.7,label:"43",name:"Ｙ字松"},
-  {key:"pt44",x:39.1,y:36.8,label:"44",name:"構想松"},
-  {key:"pt45",x:41.4,y:29.5,label:"45",name:"禱告奇蹟松"}
-].map(s => ({ name_en:"", name_ko:"", desc:"【站位文字】"+s.name+"的介紹內容，之後替換為正式文案。", desc_en:"", desc_ko:"", photos:[], audio:null, ...s }));
-
-const SYMBOLS_MAP1 = [
-  {key:"toilet-1", type:"symbol", x:38, y:83.7, label:"廁", name:"洗手間"},
-  {key:"toilet-2", type:"symbol", x:49.9, y:80.5, label:"廁", name:"洗手間"},
-  {key:"horse", type:"symbol", x:23.3, y:1.2,  label:"馬", name:"騎馬場入口"},
-  {key:"routeA", type:"symbol", x:51, y:74.8, label:"A起", name:"路線A 出發點"},
-  {key:"routeB", type:"symbol", x:59.3, y:62.4, label:"B起", name:"路線B 出發點"},
-  {key:"spring", type:"symbol", x:47.4, y:40.7, label:"C起點路線",  name:"青瓦屋前"}
-].map(s => ({ name_en:"", name_ko:"", desc:"【站位文字】"+s.name+"的介紹內容，之後替換為正式文案。", desc_en:"", desc_ko:"", photos:[], audio:null, ...s }));
-
-/* ----------------------------------------------------------------
-   ★ 星星標記（STARS）：專門給「目前沒有翻譯好的介紹文字、也不方便
-   放照片（有些景點規定要現場看，不能放上網），但還是想先標出
-   位置和名稱」的地方用。
-
-   跟 SPOTS（有完整介紹面板）、SYMBOLS（廁所/路線這類功能符號）
-   不一樣的地方：星星「滑鼠移過去只會顯示名字」，點下去不會跳出
-   介紹視窗（因為根本沒有內容可以顯示）。之後如果哪一個星星有正式
-   資料了，把 type 改成拿掉（或整筆搬到 SPOTS_MAP1 裡），它就會變成
-   一般景點、點下去會跳出面板。
-
-   格式很單純，只要 key/x/y/label/name，desc/photos/audio 都不用填：
-   {key:"star01", type:"star", x:86, y:57.1, label:"", name:"景點名稱"}
-   ---------------------------------------------------------------- */
-const STARS = [
-  {key:"star01", type:"star", x:86, y:57.1, label:"", name:"星星範例點位"}
+  {
+    id: "terrain-02",
+    name: { zh:"前襟谷", en:"", ko:"" },
+    lat: 36.121000, lng: 127.366000,
+    desc: { zh:"【待查證】需要確認實際位置與地形描述。", en:"", ko:"" },
+    images: [],
+    video: null
+  },
+  {
+    id: "terrain-03",
+    name: { zh:"朝山", en:"", ko:"" },
+    lat: 36.120000, lng: 127.373000,
+    desc: { zh:"【待查證】需要確認實際位置與地形描述。", en:"", ko:"" },
+    images: [],
+    video: null
+  }
 ];
 
-
-const baseW = 4000, baseH = 2500;   // ★底圖 bg.webp 目前的實際尺寸（裁切後），換圖時記得更新
-const CROP = { left: 0, top: 0, right: 100, bottom: 100 };
-const ALL = [...SPOTS_MAP1, ...SYMBOLS_MAP1, ...STARS];
-
-/* ================================================================
-   ★★★ 分頁架構說明（找不到東西改的時候，先看這裡）★★★
-   ----------------------------------------------------------------
-   整個網站現在是「分頁」架構，由下面的 PAGES 陣列決定總共有幾頁、
-   導覽列的按鈕怎麼排、每頁是哪一種類型。目前有 3 種頁面類型：
-
-     type:"map"     → 主地圖（互動圓點，就是上面 SPOTS_MAP1 那一大包資料）
-                        目前只有一頁用這個類型，不用另外設定。
-     type:"gallery" → 純照片瀏覽頁（地形照片用這個），設定：
-                        photos: ["photos/terrain1-a.jpg", "photos/terrain1-b.jpg", ...]
-                        沒收集到照片就先留 []，畫面會顯示「尚未收集到照片」，不會出錯。
-     type:"video"   → 影片／動畫頁，設定在 video: {...} 裡面（下面有說明）。
-
-   ★ 要「新增一頁地形照片」：複製一筆 gallery 物件、改 key/label/photos 即可，
-     導覽列按鈕會自動多一顆，不用改 HTML／CSS。
-   ★ 頁面順序＝陣列順序，導覽列由左到右就是這樣排。
-   ================================================================ */
-/* ================================================================
-   ★★★ 維修開關（給正式上線用）★★★
-   ----------------------------------------------------------------
-   DEV_MODE = true  → 校準座標工具會顯示，你自己維修/調座標時用
-   DEV_MODE = false → 校準座標工具完全隱藏，遊客看不到、也點不到，
-                       正式給遊客用的時候改成這個
-
-   ★ 現場臨時要修：不想每次都改程式碼重新上傳，也可以維持 false，
-     然後在網址後面加 ?dev=1 就會暫時打開（例如
-     https://arcabeta3.github.io/wmdmini/?dev=1），
-     這個只在那次瀏覽有效，不會影響其他遊客看到的畫面。
-   ================================================================ */
-const DEV_MODE = true;   // ★上線前記得改成 false
-const IS_DEV = DEV_MODE || new URLSearchParams(location.search).has("dev");
-
-const PAGES = [
-  {key:"map", label:"主地圖", type:"map"},
-
-  {key:"terrain1", label:"地形1", type:"gallery", photos:[
-    // "photos/terrain1-a.jpg", "photos/terrain1-b.jpg",
-  ]},
-  {key:"terrain2", label:"地形2", type:"gallery", photos:[]},
-  {key:"terrain3", label:"地形3", type:"gallery", photos:[]},
-  /* 之後要加地形4、地形5...，照這個格式複製一行就好，
-     照片還沒收集到的話 photos 先留 [] 即可，畫面不會出錯。 */
-
-  {key:"video1", label:"稜線動畫", type:"video", video:{
-    /* ---------------------------------------------------------------
-       影片來源二選一，用 mode 切換，不用改任何 HTML／CSS：
-
-       mode:"local"  → 影片檔案放在網站自己的資料夾裡（例如 video/ridge.mp4），
-                        用 src 指定路徑。優點：不需要另外的帳號、離線也能播；
-                        缺點：檔案大的話下載/主機空間要注意。
-
-       mode:"embed"  → 用 YouTube／Vimeo「不公開／不公開列出」連結內嵌播放，
-                        用 embedUrl 指定嵌入網址（不是一般分享網址，是嵌入用的
-                        embed 網址）。優點：不佔自己主機空間、大檔案也不怕；
-                        缺點：需要網路連線，且會用到第三方平台帳號。
-
-       兩種都先把對應欄位填好，只要改 mode 那一個字就能切換，不用重寫。
-       --------------------------------------------------------------- */
-    mode: "local",
-    src: "video/ridge-animation.mp4",   // mode:"local" 時使用
-    poster: "",                         // 影片載入前的預覽圖，選填
-    embedUrl: ""                        // mode:"embed" 時使用，例如 "https://www.youtube.com/embed/xxxxx"
-  }}
-];
-
-let currentPageKey = PAGES[0].key;
-
-const UI = {
-  zh:{ tagline:"戶外導覽地圖 mockup — 點擊圓點查看景點介紹", photo:"【照片佔位】", spot:"景點", pending:"" },
-  en:{ tagline:"Outdoor guide map mockup — click a dot to view spot info", photo:"[Photo placeholder]", spot:"Spot", pending:"(translation pending — showing Chinese content)" },
-  ko:{ tagline:"야외 안내 지도 목업 — 점을 클릭하면 소개가 나타납니다", photo:"[사진 자리표시]", spot:"장소", pending:"(번역 예정 — 중국어 내용 표시 중)" }
+const i18n = {
+  zh: { subtitle:"山區景點導覽地圖", searchPh:"搜尋景點名稱…" },
+  en: { subtitle:"Mountain Site Guide Map", searchPh:"Search spots…" },
+  ko: { subtitle:"산악 명소 안내 지도", searchPh:"명소 검색…" }
 };
+let currentLang = "zh";
 
-let currentLang="zh", calibMode=false, calibIndex=0, currentOpenKey=null;
-
-function getText(spot, base, lang){
-  if(lang==="zh") return spot[base] || "";
-  const v = spot[base+"_"+lang];
-  return v && v.trim() ? v : (spot[base] || "");
-}
-function isTranslated(spot, base, lang){
-  if(lang==="zh") return true;
-  const v = spot[base+"_"+lang];
-  return !!(v && v.trim());
-}
-
-const mapStage=document.getElementById("mapStage"), mapImage=document.getElementById("mapImage");
-const mapViewport=document.getElementById("mapViewport"), zoomResetBtn=document.getElementById("zoomResetBtn"), zoomHintEl=document.getElementById("zoomHint");
-const markerLayer=document.getElementById("markerLayer");
-const modalBackdrop=document.getElementById("modalBackdrop"), modalCard=document.getElementById("modalCard");
-const galleryMain=document.getElementById("galleryMain"), galleryThumbs=document.getElementById("galleryThumbs");
-const panelEyebrow=document.getElementById("panelEyebrow"), panelTitle=document.getElementById("panelTitle");
-const panelDesc=document.getElementById("panelDesc"), translationNote=document.getElementById("translationNote");
-const audioBtn=document.getElementById("audioBtn"), audioEl=document.getElementById("audioEl");
-const calibPanel=document.getElementById("calibPanel"), calibToggle=document.getElementById("calibToggle");
-const calibSelect=document.getElementById("calibSelect"), calibCurrentLabel=document.getElementById("calibCurrentLabel");
-const toastEl=document.getElementById("toast");
-
-const tabNavEl=document.getElementById("tabNav");
-const mapSection=document.getElementById("mapSection"), gallerySection=document.getElementById("gallerySection"), videoSection=document.getElementById("videoSection");
-const galleryGrid=document.getElementById("galleryGrid"), videoStage=document.getElementById("videoStage");
-const lightboxBackdrop=document.getElementById("lightboxBackdrop"), lightboxImg=document.getElementById("lightboxImg");
-
-function toast(msg){ toastEl.textContent=msg; toastEl.classList.add("show"); clearTimeout(toastEl._t); toastEl._t=setTimeout(()=>toastEl.classList.remove("show"),2200); }
-
-/* ================================================================
-   ★ 標記群集（clustering）
-   ----------------------------------------------------------------
-   問題：49 個點在縮小狀態下，實際螢幕距離只有幾個 pixel，一定會擠成一團。
-   解法：計算每個點「在螢幕上」的實際距離，太近的自動合併成一個群組點，
-   上面顯示這裡有幾個景點。放大之後距離被拉開，群組會自動散開成單獨的點。
-   ★ 這不會動到任何座標資料，純粹是顯示層的處理。
-   ★ 校準模式下會自動關閉群集，確保每個點都能單獨點到。
-   ================================================================ */
-const CLUSTER_PX = 34;   // 螢幕上相距小於這個 px 就合併，數字越大合併越積極
-/* ★縮放上限不能用「倍率」來定，因為同樣的倍率在不同裝置上是完全不同的東西：
-   電腦上地圖原本就顯示成約 1200px 寬，放 3 倍就變 3600px（太大）；
-   手機上地圖原本只有約 342px 寬，放 3 倍才 1026px（根本不夠）。
-   所以改成用「地圖放大後實際顯示成多寬」當標準，上限由程式依裝置自動換算：
-   ── 手機自然會算出約 7 倍，電腦約 2 倍，兩邊的實際使用體驗才一致。 */
-const MAX_MAP_WIDTH_PX  = 2600;   // 放到最大時，地圖顯示的寬度（最近兩點約可分開 36px）
-const DECLUSTER_MAP_PX  = 2300;   // 地圖顯示寬度超過這個值就完全不群集
-const LABEL_MAP_PX      = 900;    // 地圖顯示寬度超過這個值才顯示數字標籤
-const MIN_SCALE = 1;
-window.__mapScale = 1;   // 目前縮放倍率，renderMarkers 會讀這個決定要不要群集
-window.__mapDisplayWidth = 0;   // 目前地圖實際顯示的寬度（px）
-
-function buildClusters(rect){
-  const pts = [];
-  ALL.forEach(spot=>{
-    const p = toDisplay(spot);
-    if(p.visible) pts.push({spot, dx:p.dx, dy:p.dy});
-  });
-  const used = new Array(pts.length).fill(false);
-  const groups = [];
-  for(let i=0;i<pts.length;i++){
-    if(used[i]) continue;
-    used[i]=true;
-    const g=[pts[i]];
-    for(let j=i+1;j<pts.length;j++){
-      if(used[j]) continue;
-      const px=(pts[i].dx-pts[j].dx)/100*rect.width;
-      const py=(pts[i].dy-pts[j].dy)/100*rect.height;
-      if(Math.hypot(px,py) < CLUSTER_PX){ used[j]=true; g.push(pts[j]); }
-    }
-    groups.push(g);
-  }
-  return groups;
-}
-
-function makeSingleMarker(spot, dx, dy){
-  const marker=document.createElement("div");
-  marker.className="marker"+(spot.type==="symbol"?" symbol":"")+(spot.type==="star"?" star":"");
-  marker.dataset.dx=dx; marker.dataset.dy=dy;
-  marker.dataset.key=spot.key;
-  const shapeSvg = spot.type==="star"
-    ? `<svg viewBox="0 0 14 14"><polygon class="star-shape" points="7,0.8 8.7,5.1 13.3,5.3 9.7,8.2 10.9,12.6 7,10.1 3.1,12.6 4.3,8.2 0.7,5.3 5.3,5.1"></polygon></svg>`
-    : `<svg viewBox="0 0 14 14"><circle class="ring" cx="7" cy="7" r="6"></circle></svg>`;
-  marker.innerHTML = `
-    ${shapeSvg}
-    ${spot.audio ? '<div class="marker-audio-badge">♪</div>' : ''}
-    <div class="marker-tag">${spot.label||""}</div>
-    <div class="marker-tooltip">${getText(spot,"name",currentLang)}</div>
-  `;
-  return marker;
-}
-
-function makeClusterMarker(group){
-  const dx = group.reduce((a,p)=>a+p.dx,0)/group.length;
-  const dy = group.reduce((a,p)=>a+p.dy,0)/group.length;
-  const el=document.createElement("div");
-  el.className="marker cluster";
-  el.dataset.dx=dx; el.dataset.dy=dy;
-  const names = group.slice(0,6).map(p=>getText(p.spot,"name",currentLang)).join("、")
-              + (group.length>6 ? "…" : "");
-  el.innerHTML = `
-    <div class="cluster-bubble">${group.length}</div>
-    <div class="marker-tooltip">這一帶有 ${group.length} 個景點：${names}</div>
-  `;
-  return el;
-}
-
-/* ★把圓點實際定位到畫面上的正確像素位置。
-   這個函式刻意跟「建立圓點 DOM」（renderMarkers）分開：
-   - renderMarkers：資料/群集有變化時才需要重新蓋 DOM（比較貴）
-   - repositionMarkers：純粹縮放/拖曳時每一格畫面都要呼叫（要夠輕量），
-     只是搬動既有 DOM 元素的 left/top，不重建內容，才不會頓。
-   圓點本身永遠是原生 14px 大小，不會被地圖的縮放 transform 影響到，
-   這是解決「放大會糊」的關鍵——圓點根本不在會被縮放的圖層裡面。 */
-function repositionMarkers(){
-  if(!window.__zoomAPI) return;
-  const st = window.__zoomAPI.getState();
-  if(!st.naturalBox) return;
-  markerLayer.querySelectorAll(".marker").forEach(el=>{
-    const dx=parseFloat(el.dataset.dx), dy=parseFloat(el.dataset.dy);
-    const nx = st.naturalBox.left + dx/100*st.naturalBox.width;
-    const ny = st.naturalBox.top  + dy/100*st.naturalBox.height;
-    el.style.left = (nx*st.scale + st.tx) + "px";
-    el.style.top  = (ny*st.scale + st.ty) + "px";
-  });
-}
-
-function renderMarkers(){
-  markerLayer.querySelectorAll(".marker").forEach(el=>el.remove());
-  const rect = mapStage.getBoundingClientRect();
-  /* ★重要防呆：底圖還沒載入完成時，容器寬高會是 0，這時候算出來的
-     「螢幕距離」全部都是 0，會導致所有點被誤判成同一群、整張地圖
-     只剩一顆球。所以尺寸還沒準備好時，一律不群集。 */
-  const sizeReady = rect.width > 50 && rect.height > 50;
-  /* ★地圖顯示寬度超過 DECLUSTER_MAP_PX 時，一律不群集，全部點單獨顯示。
-     用「顯示寬度」而不是「倍率」判斷，手機和電腦才會在對等的實際大小下解散。 */
-  const atMaxZoom = window.__mapDisplayWidth >= DECLUSTER_MAP_PX;
-  // 校準模式：不群集，每個點都要能單獨點到
-  const groups = (calibMode || !sizeReady || atMaxZoom) ? null : buildClusters(rect);
-
-  if(!groups){
-    ALL.forEach(spot=>{
-      const p = toDisplay(spot);
-      if(p.visible) markerLayer.appendChild(makeSingleMarker(spot, p.dx, p.dy));
-    });
-  } else {
-    groups.forEach(g=>{
-      if(g.length===1) markerLayer.appendChild(makeSingleMarker(g[0].spot, g[0].dx, g[0].dy));
-      else markerLayer.appendChild(makeClusterMarker(g));
-    });
-  }
-  repositionMarkers();   // 蓋完 DOM 立刻定位到正確的螢幕像素位置
-  if(calibMode) highlightCalibCurrent();
-}
-
-function setMainPhoto(spot, idx){
-  const p = spot.photos[idx];
-  if(p){ galleryMain.style.backgroundImage=`url(${p})`; galleryMain.textContent=""; }
-  else { galleryMain.style.backgroundImage=""; galleryMain.textContent=UI[currentLang].photo; }
-  galleryThumbs.querySelectorAll("img").forEach((im,i)=>im.classList.toggle("active", i===idx));
-}
-
-function openPanel(spot){
-  currentOpenKey = spot.key;
-
-  if(spot.photos && spot.photos.length){
-    galleryThumbs.style.display="flex";
-    galleryThumbs.innerHTML = spot.photos.map((p,i)=>`<img src="${p}" data-i="${i}">`).join("");
-    galleryThumbs.querySelectorAll("img").forEach(im=>im.addEventListener("click",()=>setMainPhoto(spot, parseInt(im.dataset.i,10))));
-    setMainPhoto(spot, 0);
-  } else {
-    galleryThumbs.style.display="none"; galleryThumbs.innerHTML="";
-    setMainPhoto(spot, -1);
-  }
-
-  panelEyebrow.textContent = spot.type==="symbol" ? getText(spot,"name",currentLang) : `${UI[currentLang].spot} ${spot.label||spot.key}`;
-  panelTitle.textContent = getText(spot,"name",currentLang);
-  panelDesc.textContent = getText(spot,"desc",currentLang);
-
-  if(!isTranslated(spot,"name",currentLang) || !isTranslated(spot,"desc",currentLang)){
-    translationNote.style.display="block"; translationNote.textContent = UI[currentLang].pending;
-  } else { translationNote.style.display="none"; }
-
-  audioEl.pause(); audioBtn.classList.remove("playing"); audioBtn.textContent="▶";
-  if(spot.audio){
-    audioBtn.style.display="flex";
-    audioEl.src = spot.audio;
-    audioBtn.onclick = ()=>{
-      if(audioEl.paused){ audioEl.play(); audioBtn.classList.add("playing"); audioBtn.textContent="❚❚"; }
-      else { audioEl.pause(); audioBtn.classList.remove("playing"); audioBtn.textContent="▶"; }
-    };
-  } else { audioBtn.style.display="none"; }
-
-  modalBackdrop.classList.add("show");
-}
-
-function closeModal(){
-  modalBackdrop.classList.remove("show");
-  currentOpenKey=null;
-  audioEl.pause();
-}
-document.getElementById("modalClose").addEventListener("click", closeModal);
-modalBackdrop.addEventListener("click",(e)=>{ if(e.target===modalBackdrop) closeModal(); });
-
-/* 語言切換（目前 UI 按鈕先註解掉，這段邏輯保留，之後把 HTML 的
-   <div class="lang-switch"> 註解拿掉、並把下面這行綁定的程式碼
-   一起打開即可，不用重寫） */
-// document.getElementById("langSwitch").addEventListener("click",(e)=>{
-//   const btn=e.target.closest("button[data-lang]"); if(!btn) return;
-//   currentLang=btn.dataset.lang;
-//   document.querySelectorAll("#langSwitch button").forEach(b=>b.classList.toggle("active", b===btn));
-//   document.getElementById("brandTagline").textContent=UI[currentLang].tagline;
-//   renderMarkers(); buildCalibSelect();
-//   if(currentOpenKey){ const s=ALL.find(x=>x.key===currentOpenKey); openPanel(s); }
-// });
-
-/* ---------------- 分頁切換（PAGES 陣列驅動，加減頁不用改這裡） ---------------- */
-function buildTabNav(){
-  tabNavEl.innerHTML = PAGES.map(p=>`<button data-key="${p.key}" class="${p.key===currentPageKey?'active':''}">${p.label}</button>`).join("");
-}
-tabNavEl.addEventListener("click",(e)=>{
-  const btn=e.target.closest("button[data-key]"); if(!btn) return;
-  switchPage(btn.dataset.key);
-});
-function switchPage(key){
-  currentPageKey = key;
-  const page = PAGES.find(p=>p.key===key);
-  buildTabNav();
-  closeModal(); closeLightbox();
-
-  mapSection.style.display    = page.type==="map"     ? "flex" : "none";
-  gallerySection.style.display= page.type==="gallery" ? "block": "none";
-  videoSection.style.display  = page.type==="video"   ? "flex" : "none";
-  // 校準工具只跟主地圖有關，切到其他分頁就先藏起來
-  calibToggle.style.display = (page.type==="map" && IS_DEV) ? "flex" : "none";
-
-  if(page.type==="gallery") renderGallery(page);
-  if(page.type==="video")   renderVideo(page);
-}
-
-/* ---------------- 地形照片頁：純瀏覽用的照片牆 ---------------- */
-function renderGallery(page){
-  if(!page.photos || !page.photos.length){
-    galleryGrid.style.display="none";
-    galleryGrid.parentElement.querySelectorAll(".gallery-empty").forEach(el=>el.remove());
-    const empty=document.createElement("div");
-    empty.className="gallery-empty";
-    empty.textContent = `「${page.label}」還沒有收集到照片，之後把照片路徑加進 PAGES 裡這一頁的 photos 陣列即可。`;
-    gallerySection.appendChild(empty);
-    return;
-  }
-  gallerySection.querySelectorAll(".gallery-empty").forEach(el=>el.remove());
-  galleryGrid.style.display="grid";
-  galleryGrid.innerHTML = page.photos.map((p,i)=>`<div class="gallery-cell" data-i="${i}"><img src="${p}" loading="lazy" alt="${page.label}"></div>`).join("");
-  galleryGrid.querySelectorAll(".gallery-cell").forEach(cell=>{
-    cell.addEventListener("click", ()=> openLightbox(page.photos, parseInt(cell.dataset.i,10)));
-  });
-}
-
-/* ---------------- 燈箱：地形照片點下去放大看，可左右切換 ---------------- */
-let lightboxPhotos=[], lightboxIndex=0;
-function openLightbox(photos, idx){
-  lightboxPhotos=photos; lightboxIndex=idx;
-  lightboxImg.src = photos[idx];
-  lightboxBackdrop.classList.add("show");
-}
-function closeLightbox(){ lightboxBackdrop.classList.remove("show"); }
-function lightboxStep(delta){
-  if(!lightboxPhotos.length) return;
-  lightboxIndex = (lightboxIndex + delta + lightboxPhotos.length) % lightboxPhotos.length;
-  lightboxImg.src = lightboxPhotos[lightboxIndex];
-}
-document.getElementById("lightboxClose").addEventListener("click", closeLightbox);
-document.getElementById("lightboxPrev").addEventListener("click", ()=>lightboxStep(-1));
-document.getElementById("lightboxNext").addEventListener("click", ()=>lightboxStep(1));
-lightboxBackdrop.addEventListener("click",(e)=>{ if(e.target===lightboxBackdrop) closeLightbox(); });
-
-/* ---------------- 影片頁：mode 是 "local" 就放本機影片檔，是 "embed" 就內嵌第三方連結 ---------------- */
-function renderVideo(page){
-  const v = page.video || {};
-  if(v.mode==="embed" && v.embedUrl){
-    videoStage.innerHTML = `<iframe src="${v.embedUrl}" allow="autoplay; fullscreen" allowfullscreen title="${page.label}"></iframe>`;
-  } else if(v.mode==="local" && v.src){
-    videoStage.innerHTML = `<video controls ${v.poster?`poster="${v.poster}"`:""}><source src="${v.src}"></video>`;
-  } else {
-    videoStage.innerHTML = `<div class="gallery-empty">「${page.label}」還沒有設定影片來源，之後在 PAGES 裡這一頁的 video.src（或 video.embedUrl）填上即可。</div>`;
-  }
-}
-
-/* ---------------- 裁切／縮放（換算成主地圖底圖的百分比） ---------------- */
-function applyCrop(){
-  const cw = CROP.right - CROP.left, ch = CROP.bottom - CROP.top;
-  const cropWpx = baseW * cw / 100, cropHpx = baseH * ch / 100;
-  mapStage.style.aspectRatio = `${cropWpx} / ${cropHpx}`;
-  mapImage.style.width = (10000 / cw) + "%";
-  mapImage.style.left = (-(CROP.left / cw * 100)) + "%";
-  mapImage.style.top  = (-(CROP.top  / ch * 100)) + "%";
-}
-function toDisplay(spot){
-  const cw = CROP.right - CROP.left, ch = CROP.bottom - CROP.top;
-  const dx = (spot.x - CROP.left) / cw * 100;
-  const dy = (spot.y - CROP.top)  / ch * 100;
-  return { dx, dy, visible: dx >= -3 && dx <= 103 && dy >= -3 && dy <= 103 };
-}
-
-/* ---------------- 校準模式 ---------------- */
-function buildCalibSelect(){
-  calibSelect.innerHTML = ALL.map((s,i)=>`<option value="${i}">${s.label||s.key}｜${getText(s,"name",currentLang)}</option>`).join("");
-  calibSelect.value=calibIndex;
-  calibCurrentLabel.textContent = ALL.length ? (ALL[calibIndex].label||ALL[calibIndex].key)+"｜"+getText(ALL[calibIndex],"name",currentLang) : "—";
-}
-function highlightCalibCurrent(){
-  document.querySelectorAll(".marker").forEach(m=>m.classList.remove("calib-current"));
-  if(!ALL.length) return;
-  const el=document.querySelector(`.marker[data-key="${ALL[calibIndex].key}"]`);
-  if(el) el.classList.add("calib-current");
-}
-calibSelect.addEventListener("change",()=>{ calibIndex=parseInt(calibSelect.value,10); highlightCalibCurrent(); calibCurrentLabel.textContent=(ALL[calibIndex].label||ALL[calibIndex].key)+"｜"+getText(ALL[calibIndex],"name",currentLang); });
-document.getElementById("calibPrev").addEventListener("click",()=>{ calibIndex=(calibIndex-1+ALL.length)%ALL.length; buildCalibSelect(); highlightCalibCurrent(); });
-document.getElementById("calibNext").addEventListener("click",()=>{ calibIndex=(calibIndex+1)%ALL.length; buildCalibSelect(); highlightCalibCurrent(); });
-
-calibToggle.addEventListener("click",()=>{
-  calibMode=!calibMode; calibToggle.classList.toggle("on", calibMode); calibPanel.classList.toggle("show", calibMode);
-  renderMarkers();   // 校準模式要關閉群集，離開時再恢復
-  if(calibMode){ buildCalibSelect(); highlightCalibCurrent(); }
-  else{ document.querySelectorAll(".marker").forEach(m=>m.classList.remove("calib-current")); }
+/* ===== 分頁切換 ===== */
+document.getElementById('tabbar').addEventListener('click', (e)=>{
+  const btn = e.target.closest('.tab-btn');
+  if(!btn) return;
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById(btn.dataset.tab).classList.add('active');
+  if(btn.dataset.tab === 'panel-map'){ setTimeout(()=>map.invalidateSize(), 50); }
+  if(btn.dataset.tab === 'panel-sketch' && window.__hmRemeasure){ setTimeout(()=>window.__hmRemeasure(), 50); }
 });
 
-let calibReadout;
-function performCalibClick(clientX, clientY, targetEl){
-  if(!calibMode || !ALL.length) return;
-  if(targetEl && targetEl.closest && (targetEl.closest(".marker") || targetEl.closest(".calib-panel"))) return;
-  const rect=mapStage.getBoundingClientRect();
-  const dxPct=(clientX-rect.left)/rect.width*100;
-  const dyPct=(clientY-rect.top)/rect.height*100;
-  const cw=CROP.right-CROP.left, ch=CROP.bottom-CROP.top;
-  const xPct=(CROP.left + dxPct*cw/100).toFixed(1);
-  const yPct=(CROP.top  + dyPct*ch/100).toFixed(1);
-  ALL[calibIndex].x=parseFloat(xPct); ALL[calibIndex].y=parseFloat(yPct);
-  renderMarkers();
-  if(!calibReadout){ calibReadout=document.createElement("div"); calibReadout.className="calib-readout"; mapStage.appendChild(calibReadout); }
-  calibReadout.textContent = `${ALL[calibIndex].label||ALL[calibIndex].key} → x:${xPct}%  y:${yPct}%`;
-  calibReadout.classList.add("show");
-  clearTimeout(calibReadout._t); calibReadout._t=setTimeout(()=>calibReadout.classList.remove("show"),1400);
-  calibIndex=(calibIndex+1)%ALL.length; buildCalibSelect(); highlightCalibCurrent();
+/* ===== 語言切換 ===== */
+document.getElementById('langSwitch').addEventListener('click', (e)=>{
+  const btn = e.target.closest('button[data-lang]');
+  if(!btn) return;
+  currentLang = btn.dataset.lang;
+  document.querySelectorAll('#langSwitch button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  applyI18n();
+  renderSpotList();
+  renderTerrain();
+  renderExhibit();
+});
+function applyI18n(){
+  document.querySelectorAll('[data-i18n]').forEach(el=>{
+    const key = el.dataset.i18n;
+    if(i18n[currentLang][key]) el.textContent = i18n[currentLang][key];
+  });
+  document.getElementById('searchInput').placeholder = i18n[currentLang].searchPh;
 }
 
-/* ★複製到剪貼簿這件事在某些情況下會整個不能用（例如用區網 IP 而不是
-   localhost/https 開網頁時，瀏覽器基於安全限制會直接不給用剪貼簿功能，
-   而且失敗得無聲無息，連錯誤訊息都不會跳，比「複製失敗」更糟）。
-   這裡改成：能用剪貼簿就直接複製；不能用，就跳出一個文字框讓你手動全選複製，
-   保證不管什麼環境都拿得到內容，不會卡住。 */
-function copyTextRobust(text, successMsg){
-  function showFallback(){
-    const bd=document.createElement("div");
-    bd.style.cssText="position:fixed;inset:0;background:rgba(34,36,31,.55);z-index:90;display:flex;align-items:center;justify-content:center;padding:20px;";
-    bd.innerHTML=`
-      <div style="background:var(--paper);border-radius:14px;padding:18px;max-width:560px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.3);">
-        <div style="font-size:13px;color:var(--pine);margin-bottom:8px;">自動複製沒有成功，這裡手動全選（已經幫你選好了）再按 Cmd/Ctrl+C 複製：</div>
-        <textarea readonly style="width:100%;height:220px;font-size:12px;font-family:monospace;padding:8px;box-sizing:border-box;"></textarea>
-        <button style="margin-top:10px;padding:8px 16px;border-radius:8px;border:1px solid var(--stone-soft);background:#fff;cursor:pointer;">關閉</button>
+/* ===== Leaflet 地圖初始化 ===== */
+const map = L.map('map', { zoomControl:true, minZoom:13, maxZoom:19 })
+  .setView([36.123801, 127.369305], 16);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution:'&copy; OpenStreetMap contributors',
+  maxZoom:19
+}).addTo(map);
+
+const clusterGroup = L.markerClusterGroup({
+  iconCreateFunction: function(cluster){
+    return L.divIcon({
+      html: '<div class="marker-cluster-custom" style="width:'+Math.min(28+cluster.getChildCount()*1.1,46)+'px;height:'+Math.min(28+cluster.getChildCount()*1.1,46)+'px;">'+cluster.getChildCount()+'</div>',
+      className: '', iconSize: L.point(32,32)
+    });
+  }
+});
+
+const spotMarkers = {};
+let searchTerm = "";
+
+function makeIcon(){
+  return L.divIcon({ className:'', html:'<div class="my-marker-icon"></div>', iconSize:[12,12] });
+}
+
+function buildPopupHTML(spot){
+  const imgsHtml = spot.images.map(label=>`<div title="${label}"></div>`).join('');
+  return `
+    <div class="popup-title">${spot.name[currentLang]}</div>
+    <div class="popup-desc">${spot.desc[currentLang]}</div>
+    <div class="popup-imgs">${imgsHtml}</div>
+  `;
+}
+
+function rebuildMarkers(){
+  clusterGroup.clearLayers();
+  Object.keys(spotMarkers).forEach(k=>delete spotMarkers[k]);
+  spotsData.forEach(spot=>{
+    const marker = L.marker([spot.lat, spot.lng], { icon: makeIcon() });
+    marker.bindPopup(buildPopupHTML(spot));
+    marker.on('click', ()=> highlightSpot(spot.id, false));
+    spotMarkers[spot.id] = marker;
+    clusterGroup.addLayer(marker);
+  });
+  map.addLayer(clusterGroup);
+}
+rebuildMarkers();
+
+function highlightSpot(id, flyTo=true){
+  document.querySelectorAll('.spot-item').forEach(el=>el.classList.remove('selected'));
+  const el = document.querySelector(`.spot-item[data-id="${id}"]`);
+  if(el){ el.classList.add('selected'); el.scrollIntoView({block:'nearest'}); }
+  const spot = spotsData.find(s=>s.id===id);
+  if(spot && flyTo){
+    map.flyTo([spot.lat, spot.lng], 17, { duration:0.6 });
+    spotMarkers[id].openPopup();
+  }
+}
+
+/* ===== 側欄：景點清單 ===== */
+function renderSpotList(){
+  const list = document.getElementById('spotList');
+  list.innerHTML = '';
+  const filtered = spotsData.filter(s=>{
+    return s.name[currentLang].toLowerCase().includes(searchTerm.toLowerCase());
+  });
+  filtered.forEach((spot, i)=>{
+    const item = document.createElement('div');
+    item.className = 'spot-item';
+    item.dataset.id = spot.id;
+    item.innerHTML = `
+      <div class="spot-thumb">${String(i+1).padStart(2,'0')}</div>
+      <div class="spot-info">
+        <div class="spot-name">${spot.name[currentLang]}</div>
       </div>`;
-    document.body.appendChild(bd);
-    const ta=bd.querySelector("textarea");
-    ta.value=text;
-    ta.focus(); ta.select();
-    bd.querySelector("button").addEventListener("click",()=>bd.remove());
-    bd.addEventListener("click",(e)=>{ if(e.target===bd) bd.remove(); });
-  }
-  try{
-    if(navigator.clipboard && navigator.clipboard.writeText){
-      navigator.clipboard.writeText(text).then(()=>toast(successMsg)).catch(showFallback);
-    } else {
-      showFallback();
-    }
-  }catch(err){ showFallback(); }
+    item.onclick = ()=> highlightSpot(spot.id, true);
+    list.appendChild(item);
+  });
 }
 
-document.getElementById("calibExport").addEventListener("click",()=>{
-  const line = s => `  {key:"${s.key}",x:${s.x},y:${s.y},label:"${s.label||""}",name:"${s.name}"}`;
-  const out = `// ===== 主地圖座標更新（貼回去取代 x/y 就好）=====\n` + ALL.map(line).join(",\n");
-  copyTextRobust(out, "已複製座標，貼回程式碼比對 x/y 即可");
+document.getElementById('searchInput').addEventListener('input', (e)=>{
+  searchTerm = e.target.value;
+  renderSpotList();
 });
 
+/* ===== 手機側欄開關 ===== */
+document.getElementById('sidebarToggle').addEventListener('click', ()=>{
+  document.getElementById('sidebar').classList.toggle('open');
+});
+
+/* =========================================================
+   地形導覽 —— 純文字＋圖片，介紹地形特色（不是地圖）
+   請替換 title/text 為實際內容，image 目前用色塊佔位。
+   ========================================================= */
+const terrainData = [
+  { title:"【站位文字】山谷地形", text:"這裡填入月明洞整體地形的介紹文字，例如所在山系、海拔、谷地走向等。" },
+  { title:"【站位文字】水系與植被", text:"這裡填入溪流、水源、林相植被等地形特色的介紹文字。" }
+];
+function renderTerrain(){
+  const container = document.getElementById('terrainContainer');
+  container.innerHTML = terrainData.map(t=>`
+    <div class="terrain-block">
+      <div class="terrain-image"></div>
+      <h4>${t.title}</h4>
+      <p>${t.text}</p>
+    </div>
+  `).join('');
+}
+
+/* =========================================================
+   特展 —— 純圖片＋文字說明的網格排版，不放在互動地圖上
+   （因為展品會依展期搬到管理區收藏，不適合標在地圖上）。
+   每年展期結束後，直接更新 exhibitData 即可，架構不用動。
+   ========================================================= */
+const exhibitData = {
+  title: "2026 年度特展",
+  note: "本區展品依展期調整，展期結束後將收回管理區，實際展出內容以現場為準",
+  items: [
+    { name:"【站位文字】展品一", caption:"展品簡介文字" },
+    { name:"【站位文字】展品二", caption:"展品簡介文字" }
+  ]
+};
+function renderExhibit(){
+  document.getElementById('exhibitTitle').textContent = exhibitData.title;
+  document.getElementById('exhibitSub').textContent = exhibitData.note;
+  const grid = document.getElementById('exhibitGrid');
+  grid.innerHTML = exhibitData.items.map(it=>`
+    <div class="gallery-card" data-label="${it.name}">
+      <span>${it.name}</span>
+    </div>
+  `).join('');
+  grid.querySelectorAll('.gallery-card').forEach(card=>{
+    card.onclick = ()=> openLightbox(card.dataset.label);
+  });
+}
+
+function openLightbox(label){
+  document.getElementById('lightboxLabel').textContent = label;
+  document.getElementById('lightbox').classList.add('show');
+}
+document.getElementById('lightboxClose').onclick = ()=>document.getElementById('lightbox').classList.remove('show');
+document.getElementById('lightbox').addEventListener('click', (e)=>{
+  if(e.target.id === 'lightbox') e.currentTarget.classList.remove('show');
+});
+
+/* ===== 初始渲染 ===== */
+renderSpotList();
+renderTerrain();
+renderExhibit();
+applyI18n();
+
 /* ================================================================
-   ★ 地圖縮放／平移（解決手機上節點擠成一團看不清楚的問題）
-   ----------------------------------------------------------------
-   原理：不去動任何景點的 x/y 座標，而是讓「整個地圖容器」可以被
-   使用者用手勢放大、拖曳。放大之後，畫面上只會顯示某一小範圍，
-   附近擠在一起的節點自然就會被撐開、變得好點。
-   ★ 這一段跟座標資料完全獨立，以後不管怎麼改座標都不用動這裡。
+   精選導覽分頁（手繪地圖）── 完全獨立的 IIFE，所有變數/函式都不會
+   外洩到全域，避免跟上面地圖導覽分頁的變數（currentLang、map…）撞名。
+   ★ pt01 已依指示改名「建物」，教義相關說明文字已移除，換成純樓層描述。
+   ★ 這版先省略原檔案裡的「座標校準工具」與語音播放功能，把複雜度降到
+     最低，只保留核心的縮放拖曳＋跳出卡片。之後若要繼續微調座標，
+     校準工具可以再補回來。
    ================================================================ */
 (function(){
-  let scale = 1, tx = 0, ty = 0;
-  let pointers = new Map();      // 目前按著的手指/滑鼠
-  let prevMid = null, prevDist = 0;
-  let moveDist = 0;              // 這次手勢總共移動了多少（用來分辨「點」還是「拖」）
-  let suppressClick = false;
+  const HM_SPOTS = [
+    {key:"pt01",x:51.7,y:80.6,label:"01",name:"建物",
+      desc:"三層樓建築，共十六根柱子。地下一樓為洗手間與小賣部，一樓為餐廳與辦公室，二樓為展示空間與中型集會廳，三～四樓為可容納千人以上的大廳。",
+      photos:["photos/pt01-a.jpg","photos/pt01-b.jpg","photos/pt01-c.jpg"]},
+    {key:"pt02",x:47.5,y:71.4,label:"02",name:"月明湖與月明亭"},
+    {key:"pt03",x:61.6,y:59.5,label:"03",name:"聖靈瀑布"},
+    {key:"pt04",x:64.8,y:61.7,label:"04",name:"聖靈瀑布上亭子"},
+    {key:"pt05",x:66.2,y:62.3,label:"05",name:"占星台"},
+    {key:"pt06",x:55.2,y:58,label:"06",name:"癩蛤蟆石"},
+    {key:"pt07",x:52.5,y:58,label:"07",name:"33頓石"},
+    {key:"pt08",x:49.6,y:56.7,label:"08",name:"聖子石"},
+    {key:"pt09",x:47.2,y:56.6,label:"09",name:"人面具相石"},
+    {key:"pt10",x:45.5,y:57,label:"10",name:"扁平石"},
+    {key:"pt11",x:43.8,y:56,label:"11",name:"大象石"},
+    {key:"pt12",x:52,y:51.4, label:"12",name:"石頭作品"},
+    {key:"pt13",x:51.5,y:45.6, label:"13",name:"體會松"},
+    {key:"pt14",x:50.8,y:38.7,label:"14",name:"青瓦屋"},
+    {key:"pt15",x:48,y:42.2,label:"15",name:"聖靈松"},
+    {key:"pt16",x:47.4,y:35,label:"16",name:"宣教中心"},
+    {key:"pt17",x:44.1,y:38.1,label:"17",name:"神之路"},
+    {key:"pt18",x:41.5,y:41.8,label:"18",name:"禱告山"},
+    {key:"pt19",x:38.5,y:41,label:"19",name:"主愛之泉"},
+    {key:"pt21",x:36.7,y:40.4,label:"21",name:"象徵松"},
+    {key:"pt22",x:36.6,y:37.6,label:"22",name:"老家紀念館"},
+    {key:"pt23",x:33.8,y:35.5,label:"23",name:"禱告洞"},
+    {key:"pt24",x:31.5,y:36.4,label:"24",name:"山泉水"},
+    {key:"pt25",x:27.9,y:34.7,label:"25",name:"草坪聖殿"},
+    {key:"pt26",x:14.6,y:31.3,label:"26",name:"景點26"},
+    {key:"pt27",x:18.7,y:29.8,label:"27",name:"山水景石"},
+    {key:"pt28",x:26.3,y:58.2,label:"28",name:"信心山"},
+    {key:"pt46",x:28.3,y:40.2,label:"46",name:"聖子雕像"},
+    {key:"pt29",x:30.4,y:42.3,label:"29",name:"第一瀑布"},
+    {key:"pt30",x:33.2,y:50.2,label:"30",name:"景點30"},
+    {key:"pt31",x:34.7,y:51.6,label:"31",name:"老鷹石"},
+    {key:"pt32",x:39,y:68,label:"32",name:"神之亭"},
+    {key:"pt33",x:40.5,y:65.6,label:"33",name:"神的瀑布"},
+    {key:"pt34",x:54,y:23.1,label:"34",name:"田谷"},
+    {key:"pt35",x:35.2,y:8.6,label:"35",name:"展望台"},
+    {key:"pt36",x:84,y:55,label:"36",name:"城隍堂"},
+    {key:"pt37",x:68.4,y:41.2,label:"37",name:"星峰亭"},
+    {key:"pt38",x:64.5,y:42.1,label:"38",name:"王之座椅松"},
+    {key:"pt39",x:63.5,y:40.6,label:"39",name:"另一顆松樹"},
+    {key:"pt41",x:38.4,y:79.4,label:"41",name:"清算館"},
+    {key:"pt42",x:18.8,y:20.8,label:"42",name:"圓山多福松"},
+    {key:"pt43",x:26.2,y:20.7,label:"43",name:"Ｙ字松"},
+    {key:"pt44",x:39.1,y:36.8,label:"44",name:"構想松"},
+    {key:"pt45",x:41.4,y:29.5,label:"45",name:"禱告奇蹟松"}
+  ].map(s => ({ desc:"【站位文字】"+s.name+"的介紹內容，之後替換為正式文案。", photos:[], ...s }));
 
-  /* 縮放上限依裝置動態計算：地圖自然寬度越小（手機），可放大的倍率就越大，
-     這樣手機和電腦放到最大時，地圖的「實際顯示大小」是一致的。 */
-  function currentMaxScale(){
-    if(!naturalBox || naturalBox.width < 10) return 4;
-    return Math.max(1.5, MAX_MAP_WIDTH_PX / naturalBox.width);
-  }
+  const HM_SYMBOLS = [
+    {key:"toilet-1", type:"symbol", x:38, y:83.7, label:"廁", name:"洗手間"},
+    {key:"toilet-2", type:"symbol", x:49.9, y:80.5, label:"廁", name:"洗手間"},
+    {key:"horse", type:"symbol", x:23.3, y:1.2,  label:"馬", name:"騎馬場入口"},
+    {key:"routeA", type:"symbol", x:51, y:74.8, label:"A起", name:"路線A 出發點"},
+    {key:"routeB", type:"symbol", x:59.3, y:62.4, label:"B起", name:"路線B 出發點"},
+    {key:"spring", type:"symbol", x:47.4, y:40.7, label:"C起點路線",  name:"青瓦屋前"}
+  ].map(s => ({ desc:"【站位文字】"+s.name+"的介紹內容，之後替換為正式文案。", photos:[], ...s }));
 
-  let renderPending = false;
-  function scheduleRender(){
-    if(renderPending) return;
-    renderPending = true;
-    requestAnimationFrame(()=>{ renderPending=false; renderMarkers(); });
-  }
+  const HM_ALL = [...HM_SPOTS, ...HM_SYMBOLS];
+  const HM_BASE_W = 4000, HM_BASE_H = 2500;
 
-  let naturalBox = null;   // 地圖內容在「沒有縮放」狀態下，實際的位置與大小
+  const hmMapStage=document.getElementById("hmMapStage"), hmMapImage=document.getElementById("hmMapImage");
+  const hmMapViewport=document.getElementById("hmMapViewport"), hmZoomHintEl=document.getElementById("hmZoomHint");
+  const hmMarkerLayer=document.getElementById("hmMarkerLayer");
+  const hmMapSection=document.getElementById("hmMapSection");
+  const hmModalBackdrop=document.getElementById("hmModalBackdrop");
+  const hmGalleryMain=document.getElementById("hmGalleryMain"), hmGalleryThumbs=document.getElementById("hmGalleryThumbs");
+  const hmPanelEyebrow=document.getElementById("hmPanelEyebrow"), hmPanelTitle=document.getElementById("hmPanelTitle"), hmPanelDesc=document.getElementById("hmPanelDesc");
+  const hmToastEl=document.getElementById("hmToast");
 
-  function measureNatural(){
-    /* ★這裡是上一版算錯的地方：不能假設地圖內容剛好等於畫面大小。
-       你的底圖是正方形，桌機視窗通常是「寬、矮」，所以就算沒放大，
-       地圖本來就會比可視高度高，需要能往下捲動看到下半部。
-       這裡改成：暫時拿掉 transform，直接量測地圖實際的位置和大小，
-       量完再把 transform 加回去，這樣邊界限制才會抓對真正的範圍。 */
-    const prevTransform = mapViewport.style.transform;
-    mapViewport.style.transform = "none";
-    const sectionRect = mapSection.getBoundingClientRect();
-    const stageRect = mapStage.getBoundingClientRect();
-    mapViewport.style.transform = prevTransform;
-    naturalBox = {
-      left: stageRect.left - sectionRect.left,
-      top: stageRect.top - sectionRect.top,
-      width: stageRect.width,
-      height: stageRect.height
-    };
-  }
+  function hmToast(msg){ hmToastEl.textContent=msg; hmToastEl.classList.add("show"); clearTimeout(hmToastEl._t); hmToastEl._t=setTimeout(()=>hmToastEl.classList.remove("show"),2200); }
 
-  function clampPan(){
-    if(!naturalBox || naturalBox.width<10 || naturalBox.height<10) return;
-    const rect = mapSection.getBoundingClientRect();
-    /* 縮放後，地圖內容左上角、右下角實際會落在畫面上的哪裡 */
-    const contentLeft   = naturalBox.left * scale + tx;
-    const contentTop    = naturalBox.top  * scale + ty;
-    const contentRight  = contentLeft + naturalBox.width  * scale;
-    const contentBottom = contentTop  + naturalBox.height * scale;
+  const HM_CLUSTER_PX = 34;
+  const HM_MAX_MAP_WIDTH_PX = 2600;
+  const HM_DECLUSTER_MAP_PX = 2300;
+  const HM_LABEL_MAP_PX = 900;
+  const HM_MIN_SCALE = 1;
+  let hmDisplayWidth = 0;
 
-    // 內容比畫面大的那一側，才限制拖動範圍；內容比畫面小的那一側，直接置中鎖住，不能拖
-    if(naturalBox.width*scale <= rect.width){
-      tx += (rect.width - naturalBox.width*scale)/2 - contentLeft;
-    } else {
-      if(contentLeft>0) tx -= contentLeft;
-      else if(contentRight<rect.width) tx += rect.width-contentRight;
-    }
-    if(naturalBox.height*scale <= rect.height){
-      ty += (rect.height - naturalBox.height*scale)/2 - contentTop;
-    } else {
-      if(contentTop>0) ty -= contentTop;
-      else if(contentBottom<rect.height) ty += rect.height-contentBottom;
-    }
-  }
+  function hmToDisplay(spot){ return { dx: spot.x, dy: spot.y, visible: spot.x>=-3 && spot.x<=103 && spot.y>=-3 && spot.y<=103 }; }
 
-  function apply(reclusterNow){
-    clampPan();
-    mapViewport.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
-    const displayWidth = (naturalBox ? naturalBox.width : 0) * scale;
-    window.__mapScale = scale;
-    window.__mapDisplayWidth = displayWidth;   // 給 renderMarkers 判斷群集/標籤
-    markerLayer.classList.toggle("labels-on", displayWidth >= LABEL_MAP_PX);
-    repositionMarkers();   // ★每一格畫面都重新定位圓點的真實像素位置（輕量：只搬 left/top，不重建 DOM）
-    if(reclusterNow !== false) scheduleRender();   // 縮放後重算群集，該散開的散開
-  }
-
-  function clampScale(s){ return Math.min(currentMaxScale(), Math.max(MIN_SCALE, s)); }
-
-  function midOf(list){
-    const n = list.length;
-    let x=0,y=0; list.forEach(p=>{x+=p.x;y+=p.y;});
-    return {x:x/n, y:y/n};
-  }
-  function distOf(list){
-    const [a,b] = list;
-    return Math.hypot(a.x-b.x, a.y-b.y);
-  }
-  function relPoint(e){
-    const rect = mapSection.getBoundingClientRect();
-    return { x: e.clientX-rect.left, y: e.clientY-rect.top };
-  }
-
-  function resetTracking(){
-    const list=[...pointers.values()];
-    prevMid = list.length ? midOf(list) : null;
-    prevDist = list.length===2 ? distOf(list) : 0;
-  }
-
-  function hideHint(){ zoomHintEl.classList.add("hide"); }
-
-  mapSection.addEventListener("pointerdown",(e)=>{
-    /* ★浮在地圖上面的 UI 控制項（校準面板、縮放按鈕）點擊時，
-       不要讓地圖的拖曳/縮放手勢去搶這個 pointer，
-       不然這些按鈕會偶爾點不動，跟校準模式之前那個 bug 是同一種病。 */
-    if(e.target.closest(".calib-panel, .zoom-controls, .zoom-hint")) return;
-    mapSection.setPointerCapture(e.pointerId);
-    pointers.set(e.pointerId, relPoint(e));
-    moveDist = 0;
-    mapViewport.classList.remove("animating");
-    mapSection.classList.add("dragging");
-    resetTracking();
-  });
-
-  mapSection.addEventListener("pointermove",(e)=>{
-    if(!pointers.has(e.pointerId)) return;
-    pointers.set(e.pointerId, relPoint(e));
-    const list=[...pointers.values()];
-    if(!prevMid){ resetTracking(); return; }
-
-    const mid = midOf(list);
-    moveDist += Math.hypot(mid.x-prevMid.x, mid.y-prevMid.y);
-    tx += mid.x - prevMid.x;
-    ty += mid.y - prevMid.y;
-
-    let scaleChanged = false;
-    if(list.length===2){
-      const d = distOf(list);
-      if(prevDist>0){
-        const newScale = clampScale(scale * (d/prevDist));
-        const k = newScale/scale;
-        tx = mid.x - (mid.x - tx)*k;
-        ty = mid.y - (mid.y - ty)*k;
-        scale = newScale;
-        scaleChanged = true;
+  function hmBuildClusters(rect){
+    const pts = [];
+    HM_ALL.forEach(spot=>{ const p = hmToDisplay(spot); if(p.visible) pts.push({spot, dx:p.dx, dy:p.dy}); });
+    const used = new Array(pts.length).fill(false);
+    const groups = [];
+    for(let i=0;i<pts.length;i++){
+      if(used[i]) continue;
+      used[i]=true;
+      const g=[pts[i]];
+      for(let j=i+1;j<pts.length;j++){
+        if(used[j]) continue;
+        const px=(pts[i].dx-pts[j].dx)/100*rect.width;
+        const py=(pts[i].dy-pts[j].dy)/100*rect.height;
+        if(Math.hypot(px,py) < HM_CLUSTER_PX){ used[j]=true; g.push(pts[j]); }
       }
-      prevDist = d;
+      groups.push(g);
     }
-    prevMid = mid;
-    apply(scaleChanged);   // 純拖曳時不重算群集，避免卡頓
-    if(moveDist>4) hideHint();
-  });
-
-  function endPointer(e){
-    pointers.delete(e.pointerId);
-    const wasCleanTap = moveDist<=6 && pointers.size===0;
-    if(moveDist>6){ suppressClick=true; setTimeout(()=>suppressClick=false, 0); }
-    if(pointers.size===0) mapSection.classList.remove("dragging");
-    resetTracking();
-    /* ★地圖上所有「點一下」的判斷，統一在這裡處理，不再依賴瀏覽器自己合成的
-       click 事件——因為 touch-action:none + setPointerCapture 這組合，
-       在很多瀏覽器（不只手機，桌機也會）上會讓原生 click 不穩定觸發。
-       這裡改成我們自己判斷「是否為單純點一下、沒有拖曳」，直接處理接下來
-       該做什麼事，不管瀏覽器的 click 準不準都有效。 */
-    if(!wasCleanTap) return;
-    const targetEl = document.elementFromPoint(e.clientX, e.clientY);
-    if(calibMode){
-      performCalibClick(e.clientX, e.clientY, targetEl);
-      return;
-    }
-    if(!targetEl) return;
-    const markerEl = targetEl.closest(".marker");
-    if(!markerEl) return;
-    if(markerEl.classList.contains("cluster")){
-      const dx=parseFloat(markerEl.dataset.dx), dy=parseFloat(markerEl.dataset.dy);
-      if(window.__zoomAPI) window.__zoomAPI.zoomToPoint(dx, dy);
-    } else {
-      const spot = ALL.find(s=>s.key===markerEl.dataset.key);
-      if(spot && spot.type!=="star") openPanel(spot);
-    }
+    return groups;
   }
-  mapSection.addEventListener("pointerup", endPointer);
-  mapSection.addEventListener("pointercancel", endPointer);
 
-  // 拖曳幅度夠大的話，放開手指後不要誤觸發底下的景點點擊
-  mapSection.addEventListener("click",(e)=>{ if(suppressClick){ e.stopPropagation(); e.preventDefault(); } }, true);
+  function hmMakeSingleMarker(spot, dx, dy){
+    const marker=document.createElement("div");
+    marker.className="hm-marker"+(spot.type==="symbol"?" symbol":"");
+    marker.dataset.dx=dx; marker.dataset.dy=dy; marker.dataset.key=spot.key;
+    marker.innerHTML = `
+      <svg viewBox="0 0 14 14"><circle class="hm-ring" cx="7" cy="7" r="6"></circle></svg>
+      <div class="hm-marker-tag">${spot.label||""}</div>
+      <div class="hm-marker-tooltip">${spot.name}</div>
+    `;
+    return marker;
+  }
+  function hmMakeClusterMarker(group){
+    const dx = group.reduce((a,p)=>a+p.dx,0)/group.length;
+    const dy = group.reduce((a,p)=>a+p.dy,0)/group.length;
+    const el=document.createElement("div");
+    el.className="hm-marker cluster";
+    el.dataset.dx=dx; el.dataset.dy=dy;
+    const names = group.slice(0,6).map(p=>p.spot.name).join("、") + (group.length>6 ? "…" : "");
+    el.innerHTML = `<div class="hm-cluster-bubble">${group.length}</div><div class="hm-marker-tooltip">這一帶有 ${group.length} 個景點：${names}</div>`;
+    return el;
+  }
 
-  /* 電腦版滑鼠滾輪：
-     - 一般滾動 = 上下（或左右）移動地圖，維持你原本習慣的操作方式
-     - Ctrl / ⌘ + 滾輪 = 縮放（也是觸控板雙指捏合會送出的事件） */
-  mapSection.addEventListener("wheel",(e)=>{
-    e.preventDefault();
-    hideHint();
-    if(e.ctrlKey || e.metaKey){
+  function hmRepositionMarkers(){
+    if(!window.__hmZoomAPI) return;
+    const st = window.__hmZoomAPI.getState();
+    if(!st.naturalBox) return;
+    hmMarkerLayer.querySelectorAll(".hm-marker").forEach(el=>{
+      const dx=parseFloat(el.dataset.dx), dy=parseFloat(el.dataset.dy);
+      const nx = st.naturalBox.left + dx/100*st.naturalBox.width;
+      const ny = st.naturalBox.top  + dy/100*st.naturalBox.height;
+      el.style.left = (nx*st.scale + st.tx) + "px";
+      el.style.top  = (ny*st.scale + st.ty) + "px";
+    });
+  }
+
+  function hmRenderMarkers(){
+    hmMarkerLayer.querySelectorAll(".hm-marker").forEach(el=>el.remove());
+    const rect = hmMapStage.getBoundingClientRect();
+    const sizeReady = rect.width > 50 && rect.height > 50;
+    const atMaxZoom = hmDisplayWidth >= HM_DECLUSTER_MAP_PX;
+    const groups = (!sizeReady || atMaxZoom) ? null : hmBuildClusters(rect);
+    if(!groups){
+      HM_ALL.forEach(spot=>{ const p = hmToDisplay(spot); if(p.visible) hmMarkerLayer.appendChild(hmMakeSingleMarker(spot, p.dx, p.dy)); });
+    } else {
+      groups.forEach(g=>{
+        if(g.length===1) hmMarkerLayer.appendChild(hmMakeSingleMarker(g[0].spot, g[0].dx, g[0].dy));
+        else hmMarkerLayer.appendChild(hmMakeClusterMarker(g));
+      });
+    }
+    hmRepositionMarkers();
+  }
+
+  function hmSetMainPhoto(spot, idx){
+    const p = spot.photos[idx];
+    if(p){ hmGalleryMain.style.backgroundImage=`url(${p})`; hmGalleryMain.textContent=""; }
+    else { hmGalleryMain.style.backgroundImage=""; hmGalleryMain.textContent="【照片佔位】"; }
+    hmGalleryThumbs.querySelectorAll("img").forEach((im,i)=>im.classList.toggle("active", i===idx));
+  }
+
+  function hmOpenPanel(spot){
+    if(spot.photos && spot.photos.length){
+      hmGalleryThumbs.style.display="flex";
+      hmGalleryThumbs.innerHTML = spot.photos.map((p,i)=>`<img src="${p}" data-i="${i}">`).join("");
+      hmGalleryThumbs.querySelectorAll("img").forEach(im=>im.addEventListener("click",()=>hmSetMainPhoto(spot, parseInt(im.dataset.i,10))));
+      hmSetMainPhoto(spot, 0);
+    } else {
+      hmGalleryThumbs.style.display="none"; hmGalleryThumbs.innerHTML="";
+      hmSetMainPhoto(spot, -1);
+    }
+    hmPanelEyebrow.textContent = spot.type==="symbol" ? spot.name : `景點 ${spot.label||spot.key}`;
+    hmPanelTitle.textContent = spot.name;
+    hmPanelDesc.textContent = spot.desc;
+    hmModalBackdrop.classList.add("show");
+  }
+  function hmCloseModal(){ hmModalBackdrop.classList.remove("show"); }
+  document.getElementById("hmModalClose").addEventListener("click", hmCloseModal);
+  hmModalBackdrop.addEventListener("click",(e)=>{ if(e.target===hmModalBackdrop) hmCloseModal(); });
+
+  /* ---- 縮放／拖曳（雙指、滑鼠皆可） ---- */
+  (function(){
+    let scale = 1, tx = 0, ty = 0;
+    let pointers = new Map();
+    let prevMid = null, prevDist = 0;
+    let moveDist = 0;
+    let suppressClick = false;
+    let naturalBox = null;
+
+    function currentMaxScale(){
+      if(!naturalBox || naturalBox.width < 10) return 4;
+      return Math.max(1.5, HM_MAX_MAP_WIDTH_PX / naturalBox.width);
+    }
+    let renderPending = false;
+    function scheduleRender(){
+      if(renderPending) return;
+      renderPending = true;
+      requestAnimationFrame(()=>{ renderPending=false; hmRenderMarkers(); });
+    }
+    function measureNatural(){
+      const prevTransform = hmMapViewport.style.transform;
+      hmMapViewport.style.transform = "none";
+      const sectionRect = hmMapSection.getBoundingClientRect();
+      const stageRect = hmMapStage.getBoundingClientRect();
+      hmMapViewport.style.transform = prevTransform;
+      naturalBox = { left: stageRect.left - sectionRect.left, top: stageRect.top - sectionRect.top, width: stageRect.width, height: stageRect.height };
+    }
+    function clampPan(){
+      if(!naturalBox || naturalBox.width<10 || naturalBox.height<10) return;
+      const rect = hmMapSection.getBoundingClientRect();
+      const contentLeft = naturalBox.left*scale+tx, contentTop = naturalBox.top*scale+ty;
+      const contentRight = contentLeft+naturalBox.width*scale, contentBottom = contentTop+naturalBox.height*scale;
+      if(naturalBox.width*scale <= rect.width){ tx += (rect.width-naturalBox.width*scale)/2 - contentLeft; }
+      else { if(contentLeft>0) tx -= contentLeft; else if(contentRight<rect.width) tx += rect.width-contentRight; }
+      if(naturalBox.height*scale <= rect.height){ ty += (rect.height-naturalBox.height*scale)/2 - contentTop; }
+      else { if(contentTop>0) ty -= contentTop; else if(contentBottom<rect.height) ty += rect.height-contentBottom; }
+    }
+    function apply(reclusterNow){
+      clampPan();
+      hmMapViewport.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+      const displayWidth = (naturalBox ? naturalBox.width : 0) * scale;
+      hmDisplayWidth = displayWidth;
+      hmMarkerLayer.classList.toggle("labels-on", displayWidth >= HM_LABEL_MAP_PX);
+      hmRepositionMarkers();
+      if(reclusterNow !== false) scheduleRender();
+    }
+    function clampScale(s){ return Math.min(currentMaxScale(), Math.max(HM_MIN_SCALE, s)); }
+    function midOf(list){ const n=list.length; let x=0,y=0; list.forEach(p=>{x+=p.x;y+=p.y;}); return {x:x/n,y:y/n}; }
+    function distOf(list){ const [a,b]=list; return Math.hypot(a.x-b.x, a.y-b.y); }
+    function relPoint(e){ const rect=hmMapSection.getBoundingClientRect(); return {x:e.clientX-rect.left, y:e.clientY-rect.top}; }
+    function resetTracking(){ const list=[...pointers.values()]; prevMid=list.length?midOf(list):null; prevDist=list.length===2?distOf(list):0; }
+    function hideHint(){ hmZoomHintEl.classList.add("hide"); }
+
+    hmMapSection.addEventListener("pointerdown",(e)=>{
+      if(e.target.closest(".hm-zoom-controls")) return;
+      hmMapSection.setPointerCapture(e.pointerId);
+      pointers.set(e.pointerId, relPoint(e));
+      moveDist = 0;
+      hmMapViewport.classList.remove("animating");
+      hmMapSection.classList.add("dragging");
+      resetTracking();
+    });
+    hmMapSection.addEventListener("pointermove",(e)=>{
+      if(!pointers.has(e.pointerId)) return;
+      pointers.set(e.pointerId, relPoint(e));
+      const list=[...pointers.values()];
+      if(!prevMid){ resetTracking(); return; }
+      const mid = midOf(list);
+      moveDist += Math.hypot(mid.x-prevMid.x, mid.y-prevMid.y);
+      tx += mid.x-prevMid.x; ty += mid.y-prevMid.y;
+      let scaleChanged=false;
+      if(list.length===2){
+        const d=distOf(list);
+        if(prevDist>0){ const newScale=clampScale(scale*(d/prevDist)); const k=newScale/scale; tx=mid.x-(mid.x-tx)*k; ty=mid.y-(mid.y-ty)*k; scale=newScale; scaleChanged=true; }
+        prevDist=d;
+      }
+      prevMid=mid;
+      apply(scaleChanged);
+      if(moveDist>4) hideHint();
+    });
+    function endPointer(e){
+      pointers.delete(e.pointerId);
+      const wasCleanTap = moveDist<=6 && pointers.size===0;
+      if(moveDist>6){ suppressClick=true; setTimeout(()=>suppressClick=false,0); }
+      if(pointers.size===0) hmMapSection.classList.remove("dragging");
+      resetTracking();
+      if(!wasCleanTap) return;
+      const targetEl = document.elementFromPoint(e.clientX, e.clientY);
+      if(!targetEl) return;
+      const markerEl = targetEl.closest(".hm-marker");
+      if(!markerEl) return;
+      if(markerEl.classList.contains("cluster")){
+        const dx=parseFloat(markerEl.dataset.dx), dy=parseFloat(markerEl.dataset.dy);
+        zoomToPoint(dx, dy);
+      } else {
+        const spot = HM_ALL.find(s=>s.key===markerEl.dataset.key);
+        if(spot) hmOpenPanel(spot);
+      }
+    }
+    hmMapSection.addEventListener("pointerup", endPointer);
+    hmMapSection.addEventListener("pointercancel", endPointer);
+    hmMapSection.addEventListener("click",(e)=>{ if(suppressClick){ e.stopPropagation(); e.preventDefault(); } }, true);
+    hmMapSection.addEventListener("wheel",(e)=>{
+      e.preventDefault(); hideHint();
+      if(e.ctrlKey || e.metaKey){
+        const p = relPoint(e); const newScale = clampScale(scale*(1-e.deltaY*0.01)); const k=newScale/scale;
+        tx = p.x-(p.x-tx)*k; ty = p.y-(p.y-ty)*k; scale=newScale; apply(true);
+      } else { tx -= e.deltaX; ty -= e.deltaY; apply(false); }
+    }, {passive:false});
+
+    function zoomBy(factor){
+      const rect = hmMapSection.getBoundingClientRect();
+      const p = {x:rect.width/2, y:rect.height/2};
+      const newScale = clampScale(scale*factor); const k=newScale/scale;
+      tx = p.x-(p.x-tx)*k; ty = p.y-(p.y-ty)*k; scale=newScale;
+      hmMapViewport.classList.add("animating"); apply(true); hideHint();
+    }
+    document.getElementById("hmZoomInBtn").addEventListener("click", ()=>zoomBy(1.5));
+    document.getElementById("hmZoomOutBtn").addEventListener("click", ()=>zoomBy(1/1.5));
+    hmMapSection.addEventListener("dblclick",(e)=>{
+      hideHint();
+      if(scale>1){ resetZoom(); return; }
       const p = relPoint(e);
-      const newScale = clampScale(scale * (1 - e.deltaY*0.01));
-      const k = newScale/scale;
-      tx = p.x - (p.x - tx)*k;
-      ty = p.y - (p.y - ty)*k;
+      const newScale = clampScale(naturalBox ? 2300/naturalBox.width : 2.4), k=newScale/scale;
+      tx=p.x-(p.x-tx)*k; ty=p.y-(p.y-ty)*k; scale=newScale;
+      hmMapViewport.classList.add("animating"); apply(true);
+    });
+    function resetZoom(){ scale=1; tx=0; ty=0; hmMapViewport.classList.add("animating"); apply(true); }
+    document.getElementById("hmZoomResetBtn").addEventListener("click", resetZoom);
+
+    function zoomToPoint(dxPct, dyPct){
+      const sectionRect = hmMapSection.getBoundingClientRect();
+      const stageRect = hmMapStage.getBoundingClientRect();
+      const p = { x: stageRect.left + dxPct/100*stageRect.width - sectionRect.left, y: stageRect.top + dyPct/100*stageRect.height - sectionRect.top };
+      const newScale = clampScale(scale*2); const k=newScale/scale;
+      tx = p.x-(p.x-tx)*k; ty = p.y-(p.y-ty)*k;
+      tx += sectionRect.width/2 - p.x; ty += sectionRect.height/2 - p.y;
       scale = newScale;
-      apply(true);
-    } else {
-      tx -= e.deltaX;
-      ty -= e.deltaY;
-      apply(false);
+      hmMapViewport.classList.add("animating"); apply(true); hideHint();
     }
-  }, { passive:false });
+    window.__hmZoomAPI = { zoomToPoint, resetZoom, measureNatural, getState: ()=>({scale, tx, ty, naturalBox}) };
 
-  // 電腦版的縮放按鈕（不是每個人都知道 Ctrl+滾輪）
-  function zoomBy(factor){
-    const rect = mapSection.getBoundingClientRect();
-    const p = { x: rect.width/2, y: rect.height/2 };
-    const newScale = clampScale(scale*factor);
-    const k = newScale/scale;
-    tx = p.x - (p.x - tx)*k; ty = p.y - (p.y - ty)*k;
-    scale = newScale;
-    mapViewport.classList.add("animating");
+    function remeasure(){
+      const cw=100, ch=100;
+      hmMapStage.style.aspectRatio = `${HM_BASE_W} / ${HM_BASE_H}`;
+      measureNatural();
+      hmRenderMarkers();
+    }
+    window.__hmRemeasure = remeasure;
+
+    measureNatural();
     apply(true);
-    hideHint();
-  }
-  document.getElementById("zoomInBtn").addEventListener("click", ()=>zoomBy(1.5));
-  document.getElementById("zoomOutBtn").addEventListener("click", ()=>zoomBy(1/1.5));
-
-  // 雙擊／雙擊放大縮小
-  mapSection.addEventListener("dblclick",(e)=>{
-    hideHint();
-    if(scale>1){ resetZoom(); return; }
-    const p = relPoint(e);
-    // 雙擊直接跳到「全部點散開」的程度（依裝置換算，不用固定倍率）
-    const newScale = clampScale(naturalBox ? DECLUSTER_MAP_PX/naturalBox.width : 2.4), k = newScale/scale;
-    tx = p.x - (p.x - tx)*k; ty = p.y - (p.y - ty)*k;
-    scale = newScale;
-    mapViewport.classList.add("animating");
-    apply(true);
-  });
-
-  function resetZoom(){
-    scale=1; tx=0; ty=0;
-    mapViewport.classList.add("animating");
-    apply(true);
-  }
-  zoomResetBtn.addEventListener("click", resetZoom);
-
-  /* 給群組點使用：點一個群組，就放大並把那一帶移到畫面中央，
-     裡面的點就會散開成單獨的圓點。 */
-  function zoomToPoint(dxPct, dyPct){
-    const sectionRect = mapSection.getBoundingClientRect();
-    const stageRect = mapStage.getBoundingClientRect();
-    const p = {
-      x: stageRect.left + dxPct/100*stageRect.width - sectionRect.left,
-      y: stageRect.top  + dyPct/100*stageRect.height - sectionRect.top
-    };
-    const newScale = clampScale(scale * 2);
-    const k = newScale/scale;
-    tx = p.x - (p.x - tx)*k;
-    ty = p.y - (p.y - ty)*k;
-    // 再把該點移到畫面中央
-    tx += sectionRect.width/2  - p.x;
-    ty += sectionRect.height/2 - p.y;
-    scale = newScale;
-    mapViewport.classList.add("animating");
-    apply(true);
-    hideHint();
-  }
-  window.__zoomAPI = { zoomToPoint, resetZoom, measureNatural, getState: ()=>({scale, tx, ty, naturalBox}) };
-
-  measureNatural();
-  apply(true);   // 初始化：設定好標記縮放比例、標籤顯示狀態與群集
-
-  // 切到別的分頁再切回主地圖時，維持上次的縮放位置即可，不用重置
+    window.addEventListener("resize", remeasure);
+    if(hmMapImage.complete){ remeasure(); }
+    hmMapImage.addEventListener("load", remeasure);
+    hmMapImage.addEventListener("error", remeasure);
+  })();
 })();
-
-function remeasure(){ applyCrop(); if(window.__zoomAPI) window.__zoomAPI.measureNatural(); renderMarkers(); }
-
-window.addEventListener("resize", remeasure);
-
-calibToggle.style.display = IS_DEV ? "flex" : "none";   // 一開始就設定好，正式版不會閃一下才消失
-buildTabNav();
-applyCrop();
-renderMarkers();
-buildCalibSelect();
-
-/* 底圖載入完成後，容器才會有正確的寬高，這時候重算一次版面、拖曳邊界與群集 */
-if(mapImage.complete) { remeasure(); }
-mapImage.addEventListener("load", remeasure);
-mapImage.addEventListener("error", remeasure);
 </script>
-
 </body>
 </html>
